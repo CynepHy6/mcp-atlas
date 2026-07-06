@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import axios from "axios";
 import { Version2Client } from "jira.js/version2";
 import { z } from "zod";
 import { JiraConfig } from "../../clients/jira-client.js";
@@ -65,6 +66,40 @@ function formatBytes(bytes: number): string {
     return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+function buildAuthHeaders(config: JiraConfig): Record<string, string> {
+    const headers: Record<string, string> = {
+        Accept: "application/json",
+    };
+    if (config.apiToken) {
+        if (config.host.includes("skyeng.link")) {
+            // Jira Server/Data Center — PAT as Bearer.
+            headers.Authorization = `Bearer ${config.apiToken}`;
+        } else {
+            // Atlassian Cloud — Basic with email + API token.
+            const authString = Buffer.from(
+                `${config.username}:${config.apiToken}`
+            ).toString("base64");
+            headers.Authorization = `Basic ${authString}`;
+        }
+    } else if (config.password) {
+        const authString = Buffer.from(
+            `${config.username}:${config.password}`
+        ).toString("base64");
+        headers.Authorization = `Basic ${authString}`;
+    }
+    return headers;
+}
+
+function resolveHost(config: JiraConfig): string {
+    let host = config.host;
+    if (host.includes("://")) {
+        host = new URL(host).href.replace(/\/$/, "");
+    } else {
+        host = `https://${host}`;
+    }
+    return host;
+}
+
 async function resolveByIssueAndFilename(
     jira: Version2Client,
     issueKey: string,
@@ -76,9 +111,7 @@ async function resolveByIssueAndFilename(
     });
 
     const rawAttachments = (issue as any)?.fields?.attachment ?? [];
-    const match = rawAttachments.find(
-        (a: any) => a.filename === filename
-    );
+    const match = rawAttachments.find((a: any) => a.filename === filename);
 
     if (!match) {
         const available = rawAttachments
@@ -102,20 +135,39 @@ async function resolveByIssueAndFilename(
 }
 
 async function resolveById(
-    jira: Version2Client,
+    config: JiraConfig,
     attachmentId: string
 ): Promise<ResolvedAttachment> {
-    const meta: any = await jira.issueAttachments.getAttachment({
-        id: attachmentId,
-    });
+    const host = resolveHost(config);
+    const meta: any = await axios.get(
+        `${host}/rest/api/2/attachment/${attachmentId}`,
+        { headers: buildAuthHeaders(config), timeout: 15000 }
+    );
     return {
-        id: String(meta.id ?? attachmentId),
-        filename: meta.filename ?? `attachment-${attachmentId}`,
-        mimeType: meta.mimeType ?? meta.content_type ?? "application/octet-stream",
-        size: Number(meta.size ?? 0),
-        created: meta.created ?? "",
-        contentUrl: meta.content ?? "",
+        id: String(meta.data.id ?? attachmentId),
+        filename: meta.data.filename ?? `attachment-${attachmentId}`,
+        mimeType:
+            meta.data.mimeType ??
+            meta.data.content_type ??
+            "application/octet-stream",
+        size: Number(meta.data.size ?? 0),
+        created: meta.data.created ?? "",
+        contentUrl: meta.data.content ?? "",
     };
+}
+
+async function downloadContent(
+    config: JiraConfig,
+    contentUrl: string
+): Promise<Buffer> {
+    const response = await axios.get(contentUrl, {
+        headers: buildAuthHeaders(config),
+        responseType: "arraybuffer",
+        timeout: 60000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+    });
+    return Buffer.from(response.data);
 }
 
 export const downloadAttachmentHandler =
@@ -159,13 +211,24 @@ export const downloadAttachmentHandler =
         try {
             let resolved: ResolvedAttachment;
             if (attachmentId) {
-                resolved = await resolveById(jira, attachmentId);
+                resolved = await resolveById(jiraConfig, attachmentId);
             } else {
                 resolved = await resolveByIssueAndFilename(
                     jira,
                     issueKey!,
                     filename!
                 );
+            }
+
+            if (!resolved.contentUrl) {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `Attachment ${resolved.id} has no content URL. Cannot download.`,
+                        },
+                    ],
+                };
             }
 
             const targetDir = saveDir
@@ -188,11 +251,7 @@ export const downloadAttachmentHandler =
                 };
             }
 
-            const content: ArrayBuffer = await jira.issueAttachments.getAttachmentContent(
-                { id: resolved.id }
-            );
-
-            const buffer = Buffer.from(content);
+            const buffer = await downloadContent(jiraConfig, resolved.contentUrl);
             fs.writeFileSync(targetPath, buffer);
 
             const lines: string[] = [
@@ -215,13 +274,16 @@ export const downloadAttachmentHandler =
             };
         } catch (error) {
             console.error("Error downloading attachment:", error);
+            const msg = (error as any)?.response?.status
+                ? `HTTP ${(error as any).response.status} ${(error as any).response.statusText ?? ""}: ${
+                      (error as Error).message
+                  }`
+                : (error as Error).message;
             return {
                 content: [
                     {
                         type: "text",
-                        text: `Failed to download attachment: ${
-                            (error as Error).message
-                        }`,
+                        text: `Failed to download attachment: ${msg}`,
                     },
                 ],
             };

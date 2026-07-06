@@ -186,9 +186,10 @@ npm run compile
 ## Вложения Jira
 
 - `list-attachments` — берёт `fields.attachment` задачи и отдаёт структурированный список (`id`, `filename`, `mimeType`, `size`, `created`, `author`, `contentUrl`, опц. `thumbnailUrl`).
-- `download-attachment` — сохраняет бинарник на диск через `issueAttachments.getAttachmentContent` (jira.js). Идентификация:
- - `attachmentId` (предпочтительно) — один HTTP-запрос метаданных + один на контент;
- - иначе `issueKey` + `filename` — грузит список вложений задачи и берёт первое совпадение по имени.
+- `download-attachment` — сохраняет бинарник на диск. Идентификация:
+ - `attachmentId` (предпочтительно) — `GET /rest/api/2/attachment/{id}` за метаданными через axios + Bearer;
+ - иначе `issueKey` + `filename` — грузит список вложений задачи (`jira.issues.getIssue`, `fields=attachment`) и берёт первое совпадение по имени.
+- Скачивание контента идёт **напрямую по `content` URL из метаданных** (axios, `responseType: arraybuffer`, Bearer/Basic auth). Endpoint `/rest/api/2/attachment/content/{id}` библиотеки `jira.js` на Jira Server/DC у Skyeng отдаёт 404 — поэтому используется web-URL `https://…/secure/attachment/{id}/{filename}`.
 - `saveDir` по умолчанию = `process.cwd()` MCP-сервера (обычно корень воркспейса в Cursor); каталог создаётся рекурсивно. `overwrite=false` по умолчанию — при существующем файле возвращает ошибку, не затирая.
 - Имя файла санитаризуется (`path.basename` + замена разделителей), расширения сохраняются.
 - Возвращает путь к сохранённому файлу и метаданные (`id`, `filename`, `mimeType`, размер на диске, `sourceUrl`). Не возвращает base64 inline — только диск.
