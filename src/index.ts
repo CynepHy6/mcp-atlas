@@ -158,7 +158,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.5.1",
+        version: "1.5.4",
     },
     {
         capabilities: {

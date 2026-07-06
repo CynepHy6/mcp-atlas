@@ -186,10 +186,11 @@ npm run compile
 ## Вложения Jira
 
 - `list-attachments` — берёт `fields.attachment` задачи и отдаёт структурированный список (`id`, `filename`, `mimeType`, `size`, `created`, `author`, `contentUrl`, опц. `thumbnailUrl`).
-- `download-attachment` — сохраняет бинарник на диск. Идентификация:
+- `download-attachment` — сохраняет бинарник вложения на диск. Идентификация:
  - `attachmentId` (предпочтительно) — `GET /rest/api/2/attachment/{id}` за метаданными через axios + Bearer;
  - иначе `issueKey` + `filename` — грузит список вложений задачи (`jira.issues.getIssue`, `fields=attachment`) и берёт первое совпадение по имени.
 - Скачивание контента идёт **напрямую по `content` URL из метаданных** (axios, `responseType: arraybuffer`, Bearer/Basic auth). Endpoint `/rest/api/2/attachment/content/{id}` библиотеки `jira.js` на Jira Server/DC у Skyeng отдаёт 404 — поэтому используется web-URL `https://…/secure/attachment/{id}/{filename}`.
+- **Skyeng gandalf/SSO bypass:** для скачивания бинарника с `/secure/attachment/*` к запросу может добавляться кастомный заголовок reverse-proxy. Имя и значение берутся из env `JIRA_CUSTOM_HEADER` в формате `Header-Name: value` (например `x-yandex-customheader:<corporate-token>`). Без этого env web-URL `/secure/attachment/*` на деплое Skyeng редиректит на Yandex Browser SSO даже с Bearer; с заголовком Bearer доходит до Jira. Код не содержит хардкода ни имени, ни значения — это корпоративный секрет, его место в env MCP-конфига, не в публичном репо.
 - `saveDir` по умолчанию = `process.cwd()` MCP-сервера (обычно корень воркспейса в Cursor); каталог создаётся рекурсивно. `overwrite=false` по умолчанию — при существующем файле возвращает ошибку, не затирая.
 - Имя файла санитаризуется (`path.basename` + замена разделителей), расширения сохраняются.
 - Возвращает путь к сохранённому файлу и метаданные (`id`, `filename`, `mimeType`, размер на диске, `sourceUrl`). Не возвращает base64 inline — только диск.

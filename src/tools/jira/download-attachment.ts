@@ -87,6 +87,22 @@ function buildAuthHeaders(config: JiraConfig): Record<string, string> {
         ).toString("base64");
         headers.Authorization = `Basic ${authString}`;
     }
+    // Optional custom header for reverse-proxy/SSO gates (e.g. gandalf on Skyeng
+    // Jira blocks /secure/attachment/* and redirects to Yandex Browser SSO even
+    // with Bearer; a corporate bypass header set via JIRA_CUSTOM_HEADER lets the
+    // request through). Format: "Header-Name: value". Nothing is added if the env
+    // var is not set, so the tool stays deployment-agnostic.
+    const customHeader = process.env.JIRA_CUSTOM_HEADER;
+    if (customHeader) {
+        const idx = customHeader.indexOf(":");
+        if (idx > 0) {
+            const name = customHeader.slice(0, idx).trim();
+            const value = customHeader.slice(idx + 1).trim();
+            if (name && value) {
+                headers[name] = value;
+            }
+        }
+    }
     return headers;
 }
 
@@ -158,16 +174,68 @@ async function resolveById(
 
 async function downloadContent(
     config: JiraConfig,
+    attachmentId: string,
     contentUrl: string
 ): Promise<Buffer> {
-    const response = await axios.get(contentUrl, {
-        headers: buildAuthHeaders(config),
+    const host = resolveHost(config);
+    const authHeaders = buildAuthHeaders(config);
+
+    // REST endpoint first — Bearer auth works on /rest/api/2/* (no gandalf gate).
+    // Web URL /secure/attachment/... is gandalf-blocked for Bearer tokens.
+    try {
+        const restResponse = await axios.get(
+            `${host}/rest/api/2/attachment/content/${attachmentId}`,
+            {
+                headers: authHeaders,
+                responseType: "arraybuffer",
+                timeout: 60000,
+                maxContentLength: Infinity,
+                maxBodyLength: Infinity,
+                // Ask Jira to stream content directly instead of 302-redirecting
+                // to the /secure/attachment web URL (which gandalf blocks).
+                params: { redirect: true },
+            }
+        );
+        return Buffer.from(restResponse.data);
+    } catch (restError: any) {
+        const restStatus = restError?.response?.status;
+        // Fall back to the web contentUrl only if REST endpoint is unavailable (404/405).
+        // For 401/403 we surface immediately — auth issue, not endpoint shape.
+        if (restStatus === 401 || restStatus === 403) {
+            throw new Error(
+                `REST attachment content endpoint returned ${restStatus}: ${
+                    restError?.message ?? ""
+                }`
+            );
+        }
+        // Fall through to web URL attempt.
+        console.error(
+            `REST /rest/api/2/attachment/content/${attachmentId} failed (${restStatus ?? restError?.message}); falling back to web contentUrl`
+        );
+    }
+
+    const webResponse = await axios.get(contentUrl, {
+        headers: authHeaders,
         responseType: "arraybuffer",
         timeout: 60000,
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
     });
-    return Buffer.from(response.data);
+    const buf = Buffer.from(webResponse.data);
+
+    // Detect gandalf/SSO HTML gate — axios returns 200 with HTML body instead of the binary.
+    const sample = buf.subarray(0, 200).toString("utf8");
+    if (
+        /<!DOCTYPE html|<html/i.test(sample) &&
+        /Доступ ограничен|gandalf|<title>|openresty|yabrowser/i.test(sample)
+    ) {
+        throw new Error(
+            `Attachment binary is not reachable with Bearer/PAT auth on this Jira deployment. ` +
+                `REST content endpoint is unavailable and the web URL is gated by SSO (Yandex Browser). ` +
+                `Open the URL in a Yandex Browser session to download: ${contentUrl}`
+        );
+    }
+    return buf;
 }
 
 export const downloadAttachmentHandler =
@@ -251,7 +319,11 @@ export const downloadAttachmentHandler =
                 };
             }
 
-            const buffer = await downloadContent(jiraConfig, resolved.contentUrl);
+            const buffer = await downloadContent(
+                jiraConfig,
+                resolved.id,
+                resolved.contentUrl
+            );
             fs.writeFileSync(targetPath, buffer);
 
             const lines: string[] = [

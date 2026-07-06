@@ -2,15 +2,7 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [Unreleased]
-
-## [1.5.1] - 2026-07-06
-
-### Исправлено
-
-- **`download-attachment`**: контент тянется напрямую по `content` URL из метаданных через `axios` (Bearer/Basic). Endpoint `jira.js` `/rest/api/2/attachment/content/{id}` на Jira Server/DC у Skyeng отдаёт 404 — web-URL `https://…/secure/attachment/{id}/{filename}` работает. `resolveById` также переведён на axios-запрос `/rest/api/2/attachment/{id}`. В error-ответ подмешивается HTTP-статус.
-
-## [1.5.0] - 2026-07-06
+## [1.5.4] - 2026-07-06
 
 ### Добавлено
 
