@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-06
+
+### Добавлено
+
+- **`list-attachments`** — метаданные вложений задачи Jira (`id`, `filename`, `mimeType`, `size`, `created`, `author`, `contentUrl`, `thumbnailUrl`).
+- **`download-attachment`** — скачивает бинарник вложения на диск. Идентификация по `attachmentId` (предпочтительно) или `issueKey` + `filename`; параметры `saveDir` (по умолчанию cwd MCP-сервера) и `overwrite`. Возвращает путь к сохранённому файлу и метаданные.
+
 ## [1.4.0] - 2026-06-06
 
 ### Добавлено

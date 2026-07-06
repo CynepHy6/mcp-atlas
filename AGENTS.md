@@ -96,6 +96,8 @@ tests/
 | Контекст по тикету | `read-description`, затем `read-comments` |
 | Поиск связанных задач | `search-issues` |
 | Ворклоги | `get-recent-worklogs`, `get-worklogs-by-days`, `get-worklogs` |
+| Вложения: список | `list-attachments` (id, filename, mimeType, size, contentUrl) |
+| Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
 
 ### Insight (Assets)
 
@@ -180,5 +182,15 @@ npm run compile
 ## Чего нет
 
 - Переименование/clone testcase одним вызовом.
+
+## Вложения Jira
+
+- `list-attachments` — берёт `fields.attachment` задачи и отдаёт структурированный список (`id`, `filename`, `mimeType`, `size`, `created`, `author`, `contentUrl`, опц. `thumbnailUrl`).
+- `download-attachment` — сохраняет бинарник на диск через `issueAttachments.getAttachmentContent` (jira.js). Идентификация:
+ - `attachmentId` (предпочтительно) — один HTTP-запрос метаданных + один на контент;
+ - иначе `issueKey` + `filename` — грузит список вложений задачи и берёт первое совпадение по имени.
+- `saveDir` по умолчанию = `process.cwd()` MCP-сервера (обычно корень воркспейса в Cursor); каталог создаётся рекурсивно. `overwrite=false` по умолчанию — при существующем файле возвращает ошибку, не затирая.
+- Имя файла санитаризуется (`path.basename` + замена разделителей), расширения сохраняются.
+- Возвращает путь к сохранённому файлу и метаданные (`id`, `filename`, `mimeType`, размер на диске, `sourceUrl`). Не возвращает base64 inline — только диск.
 
 Не хардкодить в docs и tool descriptions внутренние ключи проектов компании — использовать нейтральные `PROJ-T123`.

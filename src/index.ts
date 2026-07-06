@@ -80,6 +80,14 @@ import {
     searchIssuesSchema,
 } from "./tools/jira/search-issues.js";
 import {
+    listAttachmentsHandler,
+    listAttachmentsSchema,
+} from "./tools/jira/list-attachments.js";
+import {
+    downloadAttachmentHandler,
+    downloadAttachmentSchema,
+} from "./tools/jira/download-attachment.js";
+import {
     getInsightAssetHandler,
     getInsightAssetSchema,
 } from "./tools/insight/get-insight-asset.js";
@@ -150,7 +158,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.3.5",
+        version: "1.5.0",
     },
     {
         capabilities: {
@@ -215,6 +223,20 @@ server.tool(
     "Get worklogs for standard time periods (yours or a colleague's)",
     getRecentWorklogsSchema,
     getRecentWorklogsHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "list-attachments",
+    "List metadata of attachments on a Jira issue (id, filename, mimeType, size, created, author, content URL). Call before download-attachment to discover attachmentId.",
+    listAttachmentsSchema,
+    listAttachmentsHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "download-attachment",
+    "Download a Jira attachment to disk. Identify by attachmentId (preferred) or by issueKey + filename. Saves to saveDir (defaults to MCP server cwd) and returns the saved path. Set overwrite=true to replace an existing file.",
+    downloadAttachmentSchema,
+    downloadAttachmentHandler(jira, jiraConfig) as any,
 );
 
 server.tool(
