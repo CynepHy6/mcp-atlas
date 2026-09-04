@@ -1,0 +1,46 @@
+{
+    "name": "mcp-atlas",
+    "version": "1.6.1",
+    "description": "MCP server for Jira, Confluence, Insight (Assets), and Zephyr Scale",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/CynepHy6/mcp-atlas.git"
+    },
+    "bugs": {
+        "url": "https://github.com/CynepHy6/mcp-atlas/issues"
+    },
+    "homepage": "https://github.com/CynepHy6/mcp-atlas#readme",
+    "main": "build/index.js",
+    "type": "module",
+    "bin": {
+        "mcp-atlas": "./build/index.js"
+    },
+    "scripts": {
+        "start": "node ./build/index.js"
+    },
+    "files": [
+        "build",
+        "LICENSE"
+    ],
+    "keywords": [
+        "mcp",
+        "jira",
+        "confluence",
+        "atlassian",
+        "cursor",
+        "npx",
+        "zephyr"
+    ],
+    "author": "",
+    "license": "ISC",
+    "engines": {
+        "node": ">=18"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.4.0",
+        "axios": "^1.11.0",
+        "dotenv": "^16.4.7",
+        "jira.js": "^5.2.2",
+        "zod": "^3.24.2"
+    }
+}
