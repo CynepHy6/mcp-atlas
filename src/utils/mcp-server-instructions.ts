@@ -2,6 +2,7 @@
 export const MCP_SERVER_INSTRUCTIONS = [
     "Jira issue URL or key (browse/GRW-…): call read-description first; read-comments for discussion context.",
     "Create a Jira issue: create-issue (projectKey, issueType, summary; description in Jira wiki markup, not Markdown). Sub-task requires parentKey. On required-field errors retry with additionalFields.",
+    "Edit a Jira issue: edit-issue (issueKey or browse URL plus only the fields to change). Description replaces the whole body and must be Jira wiki markup.",
     "Zephyr Scale (Tests.jspa, *-Tnnn keys, test cases/runs): use tools in this server only; do not WebFetch or curl Tests.jspa URLs.",
     "Tests.jspa#/v2/testCases?projectId=… is UI navigation only; pass projectKey (test-wdio --qaseProject), not numeric projectId alone.",
     "Unfamiliar Zephyr project: inspect-zephyr-project. test-wdio sync: upsert-zephyr-testcase (inspect → upsert).",

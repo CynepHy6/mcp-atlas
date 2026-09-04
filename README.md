@@ -79,7 +79,7 @@ npm install && npm run compile
 
 ## Что умеет
 
-- **Jira** — описание/комментарии, создание и поиск issues, ворклоги
+- **Jira** — описание/комментарии, создание, правка и поиск issues, ворклоги
 - **Insight** — объекты Assets по ключу и IQL
 - **Confluence** — чтение, поиск, создание и правка страниц
 - **Zephyr** — test cases (read/create/update/delete), test runs, результаты прогонов

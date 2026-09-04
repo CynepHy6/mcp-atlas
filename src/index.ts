@@ -92,6 +92,10 @@ import {
     createIssueSchema,
 } from "./tools/jira/create-issue.js";
 import {
+    editIssueHandler,
+    editIssueSchema,
+} from "./tools/jira/edit-issue.js";
+import {
     getInsightAssetHandler,
     getInsightAssetSchema,
 } from "./tools/insight/get-insight-asset.js";
@@ -162,7 +166,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.6.0",
+        version: "1.6.1",
     },
     {
         capabilities: {
@@ -248,6 +252,13 @@ server.tool(
     "Create a Jira issue. Requires projectKey, issueType and summary. Description must be Jira wiki markup. For Sub-task pass parentKey. Extra required fields go in additionalFields.",
     createIssueSchema,
     createIssueHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "edit-issue",
+    "Update an existing Jira issue by key or browse URL. Pass only fields to change. Description must be Jira wiki markup and replaces the whole description. Extra fields go in additionalFields.",
+    editIssueSchema,
+    editIssueHandler(jira, jiraConfig) as any,
 );
 
 server.tool(

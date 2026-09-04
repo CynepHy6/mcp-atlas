@@ -1,10 +1,10 @@
+import { createIssueHandler } from "../../src/tools/jira/create-issue.js";
 import {
     buildIssueBrowseUrl,
-    createIssueHandler,
     extractIssueKey,
     formatJiraError,
     isSubtaskType,
-} from "../../src/tools/jira/create-issue.js";
+} from "../../src/utils/jira-issue.js";
 
 describe("create-issue helpers", () => {
     it("extracts a bare issue key", () => {

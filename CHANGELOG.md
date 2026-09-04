@@ -2,6 +2,12 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.6.1] - 2026-09-04
+
+### Добавлено
+
+- **`edit-issue`** — правка существующей задачи по ключу или browse URL; передаются только изменяемые поля (description заменяет тело целиком, wiki markup).
+
 ## [1.6.0] - 2026-09-04
 
 ### Добавлено

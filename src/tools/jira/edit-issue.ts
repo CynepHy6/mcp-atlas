@@ -6,48 +6,44 @@ import {
     buildIssueUpdateFields,
     extractIssueKey,
     formatJiraError,
-    isSubtaskType,
 } from "../../utils/jira-issue.js";
 import { validateJiraConfig } from "../../utils/validation.js";
 
-export const createIssueSchema = {
-    projectKey: z
+export const editIssueSchema = {
+    issueKey: z
         .string()
-        .describe('Jira project key, e.g. "PROJ"'),
-    issueType: z
-        .string()
-        .describe(
-            'Issue type name as shown in Jira, e.g. "Task", "Bug", "Story", "Sub-task"',
-        ),
-    summary: z.string().describe("Issue summary / title"),
+        .describe("Issue key or browse URL to update, e.g. PROJ-123"),
+    summary: z.string().optional().describe("New issue summary / title"),
     description: z
         .string()
         .optional()
         .describe(
-            "Issue description in Jira wiki markup (h2., *bold*, {{code}}, * lists). Not Markdown.",
+            "New description in Jira wiki markup (h2., *bold*, {{code}}, * lists). Not Markdown. Replaces the whole description.",
         ),
+    issueType: z
+        .string()
+        .optional()
+        .describe('New issue type name as shown in Jira, e.g. "Bug"'),
     parentKey: z
         .string()
         .optional()
-        .describe(
-            "Parent issue key or browse URL. Required for Sub-task. Also used to nest under an epic/parent when the project accepts fields.parent.",
-        ),
+        .describe("New parent issue key or browse URL"),
     assignee: z
         .string()
         .optional()
-        .describe("Assignee username (Jira Server/DC name), e.g. jdoe"),
+        .describe("New assignee username (Jira Server/DC name), e.g. jdoe"),
     priority: z
         .string()
         .optional()
-        .describe('Priority name as shown in Jira, e.g. "Major"'),
+        .describe('New priority name as shown in Jira, e.g. "Major"'),
     labels: z
         .array(z.string())
         .optional()
-        .describe("Labels to set on the new issue"),
+        .describe("Replace all labels with this list"),
     components: z
         .array(z.string())
         .optional()
-        .describe("Component names as shown in the project"),
+        .describe("Replace all components with these names"),
     dueDate: z
         .string()
         .optional()
@@ -60,13 +56,13 @@ export const createIssueSchema = {
         ),
 };
 
-export const createIssueHandler =
+export const editIssueHandler =
     (jira: Version2Client, jiraConfig: JiraConfig) =>
     async ({
-        projectKey,
-        issueType,
+        issueKey,
         summary,
         description,
+        issueType,
         parentKey,
         assignee,
         priority,
@@ -75,10 +71,10 @@ export const createIssueHandler =
         dueDate,
         additionalFields,
     }: {
-        projectKey: string;
-        issueType: string;
-        summary: string;
+        issueKey: string;
+        summary?: string;
         description?: string;
+        issueType?: string;
         parentKey?: string;
         assignee?: string;
         priority?: string;
@@ -99,6 +95,18 @@ export const createIssueHandler =
             };
         }
 
+        const resolvedIssueKey = extractIssueKey(issueKey);
+        if (!resolvedIssueKey) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Cannot extract issue key from issueKey: ${issueKey}`,
+                    },
+                ],
+            };
+        }
+
         let parentIssueKey: string | undefined;
         if (parentKey) {
             const extracted = extractIssueKey(parentKey);
@@ -113,15 +121,6 @@ export const createIssueHandler =
                 };
             }
             parentIssueKey = extracted;
-        } else if (isSubtaskType(issueType)) {
-            return {
-                content: [
-                    {
-                        type: "text",
-                        text: `parentKey is required when issueType is "${issueType}"`,
-                    },
-                ],
-            };
         }
 
         const fields = buildIssueUpdateFields({
@@ -136,37 +135,31 @@ export const createIssueHandler =
             dueDate,
             additionalFields,
         });
-        fields.project = { key: projectKey };
+
+        if (Object.keys(fields).length === 0) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: "Nothing to update: provide at least one of summary, description, issueType, parentKey, assignee, priority, labels, components, dueDate, or additionalFields.",
+                    },
+                ],
+            };
+        }
 
         try {
-            const created = await jira.issues.createIssue({
+            await jira.issues.editIssue({
+                issueIdOrKey: resolvedIssueKey,
                 fields: fields as any,
             });
 
-            if (!created?.key) {
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: "Failed to create issue: Jira did not return an issue key",
-                        },
-                    ],
-                };
-            }
-
+            const updatedFieldNames = Object.keys(fields).join(", ");
             const resultLines = [
-                "Issue created successfully",
-                `Key: ${created.key}`,
-                `ID: ${created.id}`,
-                `Project: ${projectKey}`,
-                `Type: ${issueType}`,
-                `Summary: ${summary}`,
-                `URL: ${buildIssueBrowseUrl(jiraConfig.host, created.key)}`,
+                "Issue updated successfully",
+                `Key: ${resolvedIssueKey}`,
+                `Updated fields: ${updatedFieldNames}`,
+                `URL: ${buildIssueBrowseUrl(jiraConfig.host, resolvedIssueKey)}`,
             ];
-
-            if (parentIssueKey) {
-                resultLines.push(`Parent: ${parentIssueKey}`);
-            }
 
             return {
                 content: [
@@ -177,12 +170,12 @@ export const createIssueHandler =
                 ],
             };
         } catch (error) {
-            console.error("Error creating Jira issue:", error);
+            console.error("Error updating Jira issue:", error);
             return {
                 content: [
                     {
                         type: "text",
-                        text: `Failed to create issue: ${formatJiraError(error)}`,
+                        text: `Failed to update issue ${resolvedIssueKey}: ${formatJiraError(error)}`,
                     },
                 ],
             };
