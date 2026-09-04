@@ -2,6 +2,12 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.6.0] - 2026-09-04
+
+### Добавлено
+
+- **`create-issue`** — создание задачи Jira (`projectKey`, `issueType`, `summary`; опционально description в wiki markup, `parentKey`, assignee, priority, labels, components, dueDate, `additionalFields`).
+
 ## [1.5.4] - 2026-07-06
 
 ### Добавлено

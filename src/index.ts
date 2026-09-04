@@ -88,6 +88,10 @@ import {
     downloadAttachmentSchema,
 } from "./tools/jira/download-attachment.js";
 import {
+    createIssueHandler,
+    createIssueSchema,
+} from "./tools/jira/create-issue.js";
+import {
     getInsightAssetHandler,
     getInsightAssetSchema,
 } from "./tools/insight/get-insight-asset.js";
@@ -158,7 +162,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.5.4",
+        version: "1.6.0",
     },
     {
         capabilities: {
@@ -237,6 +241,13 @@ server.tool(
     "Download a Jira attachment to disk. Identify by attachmentId (preferred) or by issueKey + filename. Saves to saveDir (defaults to MCP server cwd) and returns the saved path. Set overwrite=true to replace an existing file.",
     downloadAttachmentSchema,
     downloadAttachmentHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "create-issue",
+    "Create a Jira issue. Requires projectKey, issueType and summary. Description must be Jira wiki markup. For Sub-task pass parentKey. Extra required fields go in additionalFields.",
+    createIssueSchema,
+    createIssueHandler(jira, jiraConfig) as any,
 );
 
 server.tool(

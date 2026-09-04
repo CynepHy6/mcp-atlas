@@ -79,7 +79,7 @@ tests/
 
 Единая маршрутизация URL → tools: `src/utils/mcp-server-instructions.ts` → `InitializeResult.instructions` в `src/index.ts`. Cursor подмешивает её агенту как `serverUseInstructions` на каждый ход.
 
-**Содержит:** Jira issue → `read-description`; Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
+**Содержит:** Jira issue → `read-description`; создание задачи → `create-issue`; Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
 
 **Не дублировать** те же правила в descriptions отдельных tools — только в `MCP_SERVER_INSTRUCTIONS`.
 
@@ -94,10 +94,13 @@ tests/
 | Задача | Tool |
 |--------|------|
 | Контекст по тикету | `read-description`, затем `read-comments` |
+| Создать задачу | `create-issue` (`projectKey`, `issueType`, `summary`; description — Jira wiki markup; Sub-task — `parentKey`) |
 | Поиск связанных задач | `search-issues` |
 | Ворклоги | `get-recent-worklogs`, `get-worklogs-by-days`, `get-worklogs` |
 | Вложения: список | `list-attachments` (id, filename, mimeType, size, contentUrl) |
 | Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
+
+`create-issue`: description — **Jira wiki markup**, не Markdown. Sub-task без `parentKey` tool отклоняет локально. Обязательные custom fields проекта — в `additionalFields` (ответ 400 от Jira перечисляет недостающие).
 
 ### Insight (Assets)
 
@@ -164,6 +167,7 @@ tests/
 
 ```bash
 npm run compile
+./test-tool.sh create-issue '{"projectKey":"PROJ","issueType":"Task","summary":"Example task","description":"h2. What\\n\\nDo the thing"}'
 ./test-tool.sh upsert-zephyr-testcase '{"projectKey":"PROJ","wdioItTitle":"Example test","testScriptPlainText":"Шаг 1: action"}'
 ./test-tool.sh delete-zephyr-testcase '{"testCaseKeyOrUrl":"PROJ-T123","confirm":true}'
 ```
