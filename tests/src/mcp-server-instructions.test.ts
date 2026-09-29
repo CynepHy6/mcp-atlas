@@ -12,6 +12,8 @@ describe("mcp-server-instructions", () => {
         expect(MCP_SERVER_INSTRUCTIONS).toContain("read-description first");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("create-issue");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-issue");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("create-comment");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-comment");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("inspect-zephyr-project");
         expect(MCP_SERVER_INSTRUCTIONS).toContain(
             "Do not meta-comment on tools",

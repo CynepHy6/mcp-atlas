@@ -276,6 +276,8 @@ describe("Formatters", () => {
             const formatted = formatComments("VIM-26407", comments);
 
             expect(formatted).toContain("Comments for VIM-26407:");
+            expect(formatted).toContain("Id: 12345");
+            expect(formatted).toContain("Id: 12346");
             expect(formatted).toContain("Author: Test User");
             expect(formatted).toContain("Author: Another User");
             expect(formatted).toContain("Тестовый комментарий к задаче");

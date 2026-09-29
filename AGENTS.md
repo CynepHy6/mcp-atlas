@@ -79,7 +79,7 @@ tests/
 
 Единая маршрутизация URL → tools: `src/utils/mcp-server-instructions.ts` → `InitializeResult.instructions` в `src/index.ts`. Cursor подмешивает её агенту как `serverUseInstructions` на каждый ход.
 
-**Содержит:** Jira issue → `read-description`; создание/правка задачи → `create-issue` / `edit-issue`; Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
+**Содержит:** Jira issue → `read-description`; создание/правка задачи → `create-issue` / `edit-issue`; комментарий → `create-comment` / `edit-comment` (`commentId` из `read-comments`); Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
 
 **Не дублировать** те же правила в descriptions отдельных tools — только в `MCP_SERVER_INSTRUCTIONS`.
 
@@ -96,12 +96,16 @@ tests/
 | Контекст по тикету | `read-description`, затем `read-comments` |
 | Создать задачу | `create-issue` (`projectKey`, `issueType`, `summary`; description — Jira wiki markup; Sub-task — `parentKey`) |
 | Править задачу | `edit-issue` (ключ или browse URL + только изменяемые поля; description заменяет тело целиком) |
+| Создать комментарий | `create-comment` (`issueKey` или browse URL, `body` — wiki markup) |
+| Править комментарий | `edit-comment` (`issueKey`, `commentId` из `read-comments`, `body` заменяет текст целиком; `notifyUsers` необязателен) |
 | Поиск связанных задач | `search-issues` |
 | Ворклоги | `get-recent-worklogs`, `get-worklogs-by-days`, `get-worklogs` |
 | Вложения: список | `list-attachments` (id, filename, mimeType, size, contentUrl) |
 | Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
 
 `create-issue` / `edit-issue`: description — **Jira wiki markup**, не Markdown. Sub-task на create без `parentKey` tool отклоняет локально. `edit-issue` без полей для изменения не вызывает Jira. Обязательные custom fields проекта — в `additionalFields` (ответ 400 от Jira перечисляет недостающие).
+
+`create-comment` / `edit-comment`: `body` — **Jira wiki markup**, не Markdown, и заменяет текст целиком. Пустой `body`, ключ не из задачи и нечисловой `commentId` tool отклоняет локально и Jira не вызывает. `commentId` бери из строки `Id` в `read-comments`. `notifyUsers` на правке: не передавать — дефолт Jira (`true`).
 
 ### Insight (Assets)
 
@@ -170,6 +174,8 @@ tests/
 npm run compile
 ./test-tool.sh create-issue '{"projectKey":"PROJ","issueType":"Task","summary":"Example task","description":"h2. What\\n\\nDo the thing"}'
 ./test-tool.sh edit-issue '{"issueKey":"PROJ-123","summary":"Renamed task"}'
+./test-tool.sh create-comment '{"issueKey":"PROJ-123","body":"h2. Note\\n\\nDone"}'
+./test-tool.sh edit-comment '{"issueKey":"PROJ-123","commentId":"10001","body":"Updated note"}'
 ./test-tool.sh upsert-zephyr-testcase '{"projectKey":"PROJ","wdioItTitle":"Example test","testScriptPlainText":"Шаг 1: action"}'
 ./test-tool.sh delete-zephyr-testcase '{"testCaseKeyOrUrl":"PROJ-T123","confirm":true}'
 ```

@@ -33,6 +33,15 @@ export function buildIssueBrowseUrl(host: string, issueKey: string): string {
     return `https://${cleanHost}/browse/${issueKey}`;
 }
 
+export function buildIssueCommentUrl(
+    host: string,
+    issueKey: string,
+    commentId: string,
+): string {
+    const browseUrl = buildIssueBrowseUrl(host, issueKey);
+    return `${browseUrl}?focusedCommentId=${commentId}&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-${commentId}`;
+}
+
 export type IssueUpdateFieldsInput = {
     summary?: string;
     description?: string;

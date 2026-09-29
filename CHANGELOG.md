@@ -2,6 +2,17 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.7.0] - 2026-09-29
+
+### Добавлено
+
+- **`create-comment`** — комментарий к задаче по ключу или browse URL (`body` в wiki markup).
+- **`edit-comment`** — замена текста комментария по `commentId` из `read-comments`; `notifyUsers` необязателен (если не передан, остаётся дефолт Jira).
+
+### Изменено
+
+- `read-comments` печатает `Id` комментария, чтобы его можно было передать в `edit-comment`.
+
 ## [1.6.1] - 2026-09-04
 
 ### Добавлено

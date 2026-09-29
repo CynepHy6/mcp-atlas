@@ -96,6 +96,14 @@ import {
     editIssueSchema,
 } from "./tools/jira/edit-issue.js";
 import {
+    createCommentHandler,
+    createCommentSchema,
+} from "./tools/jira/create-comment.js";
+import {
+    editCommentHandler,
+    editCommentSchema,
+} from "./tools/jira/edit-comment.js";
+import {
     getInsightAssetHandler,
     getInsightAssetSchema,
 } from "./tools/insight/get-insight-asset.js";
@@ -166,7 +174,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.6.1",
+        version: "1.7.0",
     },
     {
         capabilities: {
@@ -259,6 +267,20 @@ server.tool(
     "Update an existing Jira issue by key or browse URL. Pass only fields to change. Description must be Jira wiki markup and replaces the whole description. Extra fields go in additionalFields.",
     editIssueSchema,
     editIssueHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "create-comment",
+    "Add a comment to a Jira issue by key or browse URL. Body must be Jira wiki markup. Returns the new comment id.",
+    createCommentSchema,
+    createCommentHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "edit-comment",
+    "Replace the text of an existing Jira comment. Pass issueKey, commentId from read-comments, and the new body in Jira wiki markup. notifyUsers is optional; omit it to keep the Jira default.",
+    editCommentSchema,
+    editCommentHandler(jira, jiraConfig) as any,
 );
 
 server.tool(

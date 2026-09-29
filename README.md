@@ -79,7 +79,7 @@ npm install && npm run compile
 
 ## Что умеет
 
-- **Jira** — описание/комментарии, создание, правка и поиск issues, ворклоги
+- **Jira** — описание и комментарии (чтение, создание, правка), создание, правка и поиск issues, ворклоги
 - **Insight** — объекты Assets по ключу и IQL
 - **Confluence** — чтение, поиск, создание и правка страниц
 - **Zephyr** — test cases (read/create/update/delete), test runs, результаты прогонов
@@ -90,4 +90,3 @@ npm install && npm run compile
 |------|----------|
 | [AGENTS.md](AGENTS.md) | разработка, workflows, API-ограничения |
 | [CHANGELOG.md](CHANGELOG.md) | история релизов |
-| [mcp-config.example.json](mcp-config.example.json) | MCP-конфиг npx, диапазон `v1.x` (`#semver:^1`) |

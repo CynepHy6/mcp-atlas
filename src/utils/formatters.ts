@@ -183,6 +183,7 @@ export function formatComments(issueKey: string, comments: Comment[]): string {
         const body = comment.body || "No content";
 
         return [
+            `Id: ${comment.id}`,
             `Author: ${author}`,
             `Date: ${created}`,
             `Comment:\n${body}`,
