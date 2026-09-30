@@ -2,6 +2,13 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.8.0] - 2026-09-30
+
+### Добавлено
+
+- `read-description` печатает строку `Labels` (или `(none)`, если меток нет).
+- `edit-issue`: `addLabels` и `removeLabels` добавляют или снимают метки, не трогая остальные и не требуя description. `labels` по-прежнему заменяет весь список.
+
 ## [1.7.0] - 2026-09-29
 
 ### Добавлено

@@ -179,6 +179,7 @@ describe("Formatters", () => {
             );
             expect(formatted).toContain("Type: Задача");
             expect(formatted).toContain("Status: Ready for Development");
+            expect(formatted).toContain("Labels: (none)");
             expect(formatted).toContain(
                 "Description:\nПодробное описание проблемы с рекордингом..."
             );
@@ -251,6 +252,25 @@ describe("Formatters", () => {
             expect(formatted).toContain("Original Estimate: 1h");
             expect(formatted).toContain("Remaining Estimate: 30m");
             expect(formatted).toContain("Time Spent: 1d");
+        });
+
+        it("should print labels when the issue has them", () => {
+            const issue: JiraIssue = {
+                key: "VIM-779",
+                fields: {
+                    summary: "Задача с метками",
+                    description: "Описание",
+                    issuetype: { name: "Задача" },
+                    status: { name: "Open" },
+                    labels: ["backend", "urgent"],
+                    created: "2025-01-01T12:00:00.000+0000",
+                    updated: "2025-01-02T14:00:00.000+0000",
+                },
+            };
+
+            const formatted = formatIssueDescription(issue);
+
+            expect(formatted).toContain("Labels: backend, urgent");
         });
     });
 

@@ -12,6 +12,9 @@ describe("mcp-server-instructions", () => {
         expect(MCP_SERVER_INSTRUCTIONS).toContain("read-description first");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("create-issue");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-issue");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("Labels line from read-description");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("addLabels");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("removeLabels");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("create-comment");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-comment");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("inspect-zephyr-project");

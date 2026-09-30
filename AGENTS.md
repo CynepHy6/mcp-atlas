@@ -96,6 +96,7 @@ tests/
 | Контекст по тикету | `read-description`, затем `read-comments` |
 | Создать задачу | `create-issue` (`projectKey`, `issueType`, `summary`; description — Jira wiki markup; Sub-task — `parentKey`) |
 | Править задачу | `edit-issue` (ключ или browse URL + только изменяемые поля; description заменяет тело целиком) |
+| Метки | `read-description` (строка `Labels`); правка — `edit-issue` без description |
 | Создать комментарий | `create-comment` (`issueKey` или browse URL, `body` — wiki markup) |
 | Править комментарий | `edit-comment` (`issueKey`, `commentId` из `read-comments`, `body` заменяет текст целиком; `notifyUsers` необязателен) |
 | Поиск связанных задач | `search-issues` |
@@ -104,6 +105,8 @@ tests/
 | Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
 
 `create-issue` / `edit-issue`: description — **Jira wiki markup**, не Markdown. Sub-task на create без `parentKey` tool отклоняет локально. `edit-issue` без полей для изменения не вызывает Jira. Обязательные custom fields проекта — в `additionalFields` (ответ 400 от Jira перечисляет недостающие).
+
+`read-description` всегда печатает `Labels:` — список меток или `(none)`. `edit-issue` меняет метки отдельно от описания: `labels` заменяет весь список (пустой массив снимает все); `addLabels` добавляет, `removeLabels` снимает, остальные метки остаются. `labels` вместе с `addLabels` или `removeLabels` tool отклоняет и Jira не вызывает.
 
 `create-comment` / `edit-comment`: `body` — **Jira wiki markup**, не Markdown, и заменяет текст целиком. Пустой `body`, ключ не из задачи и нечисловой `commentId` tool отклоняет локально и Jira не вызывает. `commentId` бери из строки `Id` в `read-comments`. `notifyUsers` на правке: не передавать — дефолт Jira (`true`).
 

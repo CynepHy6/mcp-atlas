@@ -93,6 +93,43 @@ export function buildIssueUpdateFields(
     return fields;
 }
 
+export type LabelUpdateOperation = { add: string } | { remove: string };
+
+export function normalizeLabelNames(
+    fieldName: string,
+    labels: string[] | undefined,
+): { labels: string[] | undefined } | { error: string } {
+    if (labels === undefined) {
+        return { labels: undefined };
+    }
+
+    const normalized = labels
+        .map((label) => label.trim())
+        .filter((label) => label.length > 0);
+
+    if (labels.length > 0 && normalized.length === 0) {
+        return { error: `${fieldName} must not contain only blank names` };
+    }
+
+    return { labels: normalized };
+}
+
+export function buildLabelUpdateOperations(
+    addLabels: string[] | undefined,
+    removeLabels: string[] | undefined,
+): LabelUpdateOperation[] {
+    const operations: LabelUpdateOperation[] = [];
+
+    for (const label of addLabels ?? []) {
+        operations.push({ add: label });
+    }
+    for (const label of removeLabels ?? []) {
+        operations.push({ remove: label });
+    }
+
+    return operations;
+}
+
 export function formatJiraError(error: unknown): string {
     const err = error as {
         message?: string;

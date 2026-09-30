@@ -8,6 +8,7 @@ export interface JiraIssue {
         issuetype?: { name: string };
         priority?: { name: string };
         status?: { name: string };
+        labels?: string[];
         assignee?: { displayName: string };
         creator?: { displayName: string };
         project?: { key: string };
@@ -93,6 +94,7 @@ export function formatIssueDescription(issue: JiraIssue): string {
         `Summary: ${summary}`,
         `Type: ${issueType}`,
         `Status: ${status}`,
+        `Labels: ${formatLabels(issue.fields.labels)}`,
     ];
 
     if (timeTrackingBlock) {
@@ -102,6 +104,14 @@ export function formatIssueDescription(issue: JiraIssue): string {
     resultLines.push(`\nDescription:\n${description}`);
 
     return resultLines.join("\n");
+}
+
+function formatLabels(labels: string[] | undefined): string {
+    if (!labels || labels.length === 0) {
+        return "(none)";
+    }
+
+    return labels.join(", ");
 }
 
 function formatTimeTracking(issue: JiraIssue): string | null {

@@ -4,8 +4,11 @@ import { JiraConfig } from "../../clients/jira-client.js";
 import {
     buildIssueBrowseUrl,
     buildIssueUpdateFields,
+    buildLabelUpdateOperations,
     extractIssueKey,
     formatJiraError,
+    normalizeLabelNames,
+    type LabelUpdateOperation,
 } from "../../utils/jira-issue.js";
 import { validateJiraConfig } from "../../utils/validation.js";
 
@@ -39,7 +42,21 @@ export const editIssueSchema = {
     labels: z
         .array(z.string())
         .optional()
-        .describe("Replace all labels with this list"),
+        .describe(
+            "Replace all labels with this list. Empty array clears every label. Do not combine with addLabels or removeLabels.",
+        ),
+    addLabels: z
+        .array(z.string())
+        .optional()
+        .describe(
+            "Add these labels and leave the rest. Does not require the current list.",
+        ),
+    removeLabels: z
+        .array(z.string())
+        .optional()
+        .describe(
+            "Remove these labels and leave the rest. Does not require the current list.",
+        ),
     components: z
         .array(z.string())
         .optional()
@@ -67,6 +84,8 @@ export const editIssueHandler =
         assignee,
         priority,
         labels,
+        addLabels,
+        removeLabels,
         components,
         dueDate,
         additionalFields,
@@ -79,6 +98,8 @@ export const editIssueHandler =
         assignee?: string;
         priority?: string;
         labels?: string[];
+        addLabels?: string[];
+        removeLabels?: string[];
         components?: string[];
         dueDate?: string;
         additionalFields?: Record<string, unknown>;
@@ -123,6 +144,46 @@ export const editIssueHandler =
             parentIssueKey = extracted;
         }
 
+        const normalizedLabels = normalizeLabelNames("labels", labels);
+        if ("error" in normalizedLabels) {
+            return {
+                content: [{ type: "text", text: normalizedLabels.error }],
+            };
+        }
+        const normalizedAddLabels = normalizeLabelNames("addLabels", addLabels);
+        if ("error" in normalizedAddLabels) {
+            return {
+                content: [{ type: "text", text: normalizedAddLabels.error }],
+            };
+        }
+        const normalizedRemoveLabels = normalizeLabelNames(
+            "removeLabels",
+            removeLabels,
+        );
+        if ("error" in normalizedRemoveLabels) {
+            return {
+                content: [{ type: "text", text: normalizedRemoveLabels.error }],
+            };
+        }
+
+        const labelOperations = buildLabelUpdateOperations(
+            normalizedAddLabels.labels,
+            normalizedRemoveLabels.labels,
+        );
+        if (
+            normalizedLabels.labels !== undefined &&
+            labelOperations.length > 0
+        ) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: "Pass either labels (replace the whole list) or addLabels/removeLabels, not both.",
+                    },
+                ],
+            };
+        }
+
         const fields = buildIssueUpdateFields({
             summary,
             description,
@@ -130,18 +191,18 @@ export const editIssueHandler =
             parentIssueKey,
             assignee,
             priority,
-            labels,
+            labels: normalizedLabels.labels,
             components,
             dueDate,
             additionalFields,
         });
 
-        if (Object.keys(fields).length === 0) {
+        if (Object.keys(fields).length === 0 && labelOperations.length === 0) {
             return {
                 content: [
                     {
                         type: "text",
-                        text: "Nothing to update: provide at least one of summary, description, issueType, parentKey, assignee, priority, labels, components, dueDate, or additionalFields.",
+                        text: "Nothing to update: provide at least one of summary, description, issueType, parentKey, assignee, priority, labels, addLabels, removeLabels, components, dueDate, or additionalFields.",
                     },
                 ],
             };
@@ -150,14 +211,26 @@ export const editIssueHandler =
         try {
             await jira.issues.editIssue({
                 issueIdOrKey: resolvedIssueKey,
-                fields: fields as any,
+                ...(Object.keys(fields).length > 0
+                    ? { fields: fields as any }
+                    : {}),
+                ...(labelOperations.length > 0
+                    ? { update: { labels: labelOperations } }
+                    : {}),
             });
 
-            const updatedFieldNames = Object.keys(fields).join(", ");
+            const updatedFieldNames = [
+                ...Object.keys(fields),
+                ...(labelOperations.length > 0 ? ["labels"] : []),
+            ].join(", ");
             const resultLines = [
                 "Issue updated successfully",
                 `Key: ${resolvedIssueKey}`,
                 `Updated fields: ${updatedFieldNames}`,
+                ...formatLabelResultLines(
+                    normalizedLabels.labels,
+                    labelOperations,
+                ),
                 `URL: ${buildIssueBrowseUrl(jiraConfig.host, resolvedIssueKey)}`,
             ];
 
@@ -181,3 +254,33 @@ export const editIssueHandler =
             };
         }
     };
+
+function formatLabelResultLines(
+    replacedLabels: string[] | undefined,
+    operations: LabelUpdateOperation[],
+): string[] {
+    if (replacedLabels !== undefined) {
+        const value = replacedLabels.length > 0 ? replacedLabels.join(", ") : "(none)";
+        return [`Labels: ${value}`];
+    }
+
+    if (operations.length === 0) {
+        return [];
+    }
+
+    const added = operations
+        .filter((operation): operation is { add: string } => "add" in operation)
+        .map((operation) => operation.add);
+    const removed = operations
+        .filter((operation): operation is { remove: string } => "remove" in operation)
+        .map((operation) => operation.remove);
+    const parts: string[] = [];
+    if (added.length > 0) {
+        parts.push(`add ${added.join(", ")}`);
+    }
+    if (removed.length > 0) {
+        parts.push(`remove ${removed.join(", ")}`);
+    }
+
+    return [`Labels: ${parts.join("; ")}`];
+}

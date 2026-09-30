@@ -74,6 +74,108 @@ describe("editIssueHandler", () => {
         });
     });
 
+    it("replaces labels without touching the description", async () => {
+        const editIssue = jest.fn().mockResolvedValue(undefined);
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        const result = await handler({
+            issueKey: "PROJ-42",
+            labels: ["backend", " urgent "],
+        });
+
+        expect(editIssue).toHaveBeenCalledWith({
+            issueIdOrKey: "PROJ-42",
+            fields: { labels: ["backend", "urgent"] },
+        });
+        expect(result.content[0].text).toContain("Updated fields: labels");
+        expect(result.content[0].text).toContain("Labels: backend, urgent");
+        expect(result.content[0].text).not.toContain("description");
+    });
+
+    it("clears labels with an empty list", async () => {
+        const editIssue = jest.fn().mockResolvedValue(undefined);
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        const result = await handler({
+            issueKey: "PROJ-42",
+            labels: [],
+        });
+
+        expect(editIssue).toHaveBeenCalledWith({
+            issueIdOrKey: "PROJ-42",
+            fields: { labels: [] },
+        });
+        expect(result.content[0].text).toContain("Labels: (none)");
+    });
+
+    it("adds a label while updating another field", async () => {
+        const editIssue = jest.fn().mockResolvedValue(undefined);
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        await handler({
+            issueKey: "PROJ-42",
+            summary: "Renamed task",
+            addLabels: ["backend"],
+        });
+
+        expect(editIssue).toHaveBeenCalledWith({
+            issueIdOrKey: "PROJ-42",
+            fields: { summary: "Renamed task" },
+            update: { labels: [{ add: "backend" }] },
+        });
+    });
+
+    it("adds and removes labels without replacing the list", async () => {
+        const editIssue = jest.fn().mockResolvedValue(undefined);
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        const result = await handler({
+            issueKey: "PROJ-42",
+            addLabels: ["backend"],
+            removeLabels: ["legacy"],
+        });
+
+        expect(editIssue).toHaveBeenCalledWith({
+            issueIdOrKey: "PROJ-42",
+            update: {
+                labels: [{ add: "backend" }, { remove: "legacy" }],
+            },
+        });
+        expect(result.content[0].text).toContain(
+            "Labels: add backend; remove legacy",
+        );
+        expect(editIssue.mock.calls[0][0].fields).toBeUndefined();
+    });
+
+    it("rejects replacing labels and adding them in one call", async () => {
+        const editIssue = jest.fn();
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        const result = await handler({
+            issueKey: "PROJ-42",
+            labels: ["backend"],
+            addLabels: ["urgent"],
+        });
+
+        expect(editIssue).not.toHaveBeenCalled();
+        expect(result.content[0].text).toContain("not both");
+    });
+
+    it("rejects blank label names", async () => {
+        const editIssue = jest.fn();
+        const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
+
+        const result = await handler({
+            issueKey: "PROJ-42",
+            addLabels: ["  "],
+        });
+
+        expect(editIssue).not.toHaveBeenCalled();
+        expect(result.content[0].text).toContain(
+            "addLabels must not contain only blank names",
+        );
+    });
+
     it("allows an additionalFields-only update", async () => {
         const editIssue = jest.fn().mockResolvedValue(undefined);
         const handler = editIssueHandler(createMockJira(editIssue), mockConfig);
