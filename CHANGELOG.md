@@ -2,6 +2,12 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.9.0] - 2026-10-01
+
+### Добавлено
+
+- **`upload-attachment`** — загружает локальный файл на задачу Jira по ключу или browse URL и дописывает в description превью `!filename|thumbnail!`, не затирая уже написанный текст. Имя на задаче можно задать через `filename`. Локальный лимит чтения — 50 МБ; больший файл Jira не вызывается.
+
 ## [1.8.0] - 2026-09-30
 
 ### Добавлено

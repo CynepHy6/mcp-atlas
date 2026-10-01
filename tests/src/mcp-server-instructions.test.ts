@@ -16,6 +16,8 @@ describe("mcp-server-instructions", () => {
         expect(MCP_SERVER_INSTRUCTIONS).toContain("addLabels");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("removeLabels");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("create-comment");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("upload-attachment");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("!filename|thumbnail!");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-comment");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("inspect-zephyr-project");
         expect(MCP_SERVER_INSTRUCTIONS).toContain(

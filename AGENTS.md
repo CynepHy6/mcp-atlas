@@ -103,6 +103,7 @@ tests/
 | Ворклоги | `get-recent-worklogs`, `get-worklogs-by-days`, `get-worklogs` |
 | Вложения: список | `list-attachments` (id, filename, mimeType, size, contentUrl) |
 | Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
+| Вложения: загрузить | `upload-attachment` (`issueKey` или browse URL, `filePath`; опц. `filename`) |
 
 `create-issue` / `edit-issue`: description — **Jira wiki markup**, не Markdown. Sub-task на create без `parentKey` tool отклоняет локально. `edit-issue` без полей для изменения не вызывает Jira. Обязательные custom fields проекта — в `additionalFields` (ответ 400 от Jira перечисляет недостающие).
 
@@ -178,6 +179,7 @@ npm run compile
 ./test-tool.sh create-issue '{"projectKey":"PROJ","issueType":"Task","summary":"Example task","description":"h2. What\\n\\nDo the thing"}'
 ./test-tool.sh edit-issue '{"issueKey":"PROJ-123","summary":"Renamed task"}'
 ./test-tool.sh create-comment '{"issueKey":"PROJ-123","body":"h2. Note\\n\\nDone"}'
+./test-tool.sh upload-attachment '{"issueKey":"PROJ-123","filePath":"/absolute/path/shot.png"}'
 ./test-tool.sh edit-comment '{"issueKey":"PROJ-123","commentId":"10001","body":"Updated note"}'
 ./test-tool.sh upsert-zephyr-testcase '{"projectKey":"PROJ","wdioItTitle":"Example test","testScriptPlainText":"Шаг 1: action"}'
 ./test-tool.sh delete-zephyr-testcase '{"testCaseKeyOrUrl":"PROJ-T123","confirm":true}'
@@ -209,5 +211,10 @@ npm run compile
 - `saveDir` по умолчанию = `process.cwd()` MCP-сервера (обычно корень воркспейса в Cursor); каталог создаётся рекурсивно. `overwrite=false` по умолчанию — при существующем файле возвращает ошибку, не затирая.
 - Имя файла санитаризуется (`path.basename` + замена разделителей), расширения сохраняются.
 - Возвращает путь к сохранённому файлу и метаданные (`id`, `filename`, `mimeType`, размер на диске, `sourceUrl`). Не возвращает base64 inline — только диск.
+- `upload-attachment` — кладёт локальный файл на задачу через `jira.issueAttachments.addAttachment` (`POST /rest/api/2/issue/{key}/attachments`, multipart, заголовок `X-Atlassian-Token: no-check`). Это REST, не web-URL `/secure/attachment/*`, поэтому gandalf/SSO и `JIRA_CUSTOM_HEADER` здесь не участвуют. Авторизация та же, что у остальных вызовов `jira.js` (Bearer на `*.skyeng.link`, Basic на Cloud).
+- `filePath` — путь на диске машины, где запущен MCP. Относительный путь резолвится от `process.cwd()`. `filename` необязателен и задаёт имя, под которым файл ляжет на задачу; по умолчанию берётся имя локального файла. Путь санитаризуется (`path.basename`), каталог и отсутствующий файл Jira не вызывают.
+- Перед чтением файла в память действует локальный лимит 50 МБ. Если Jira на инстансе разрешает меньше, отказ придёт уже от API и попадёт в текст ошибки.
+- После успешной загрузки tool дописывает в description wiki-превью `!filename|thumbnail!`. Текущий текст description сохраняется, строка добавляется в конец. Если такая строка уже есть, description не перезаписывается. Имя с `!` или `|` в файл уходит, но в description не вставляется: такая разметка сломается.
+- Если правка description не удалась, вложение на задаче остаётся, а ответ прямо говорит, что превью не вставлено, и повторяет строку `!filename|thumbnail!`. Пустой ответ Jira без метаданных вложения не считается успехом. Успешный ответ содержит `id`, `filename`, `mimeType`, размер и строку превью.
 
 Не хардкодить в docs и tool descriptions внутренние ключи проектов компании — использовать нейтральные `PROJ-T123`.

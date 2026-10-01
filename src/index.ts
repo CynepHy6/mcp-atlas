@@ -88,6 +88,10 @@ import {
     downloadAttachmentSchema,
 } from "./tools/jira/download-attachment.js";
 import {
+    uploadAttachmentHandler,
+    uploadAttachmentSchema,
+} from "./tools/jira/upload-attachment.js";
+import {
     createIssueHandler,
     createIssueSchema,
 } from "./tools/jira/create-issue.js";
@@ -253,6 +257,13 @@ server.tool(
     "Download a Jira attachment to disk. Identify by attachmentId (preferred) or by issueKey + filename. Saves to saveDir (defaults to MCP server cwd) and returns the saved path. Set overwrite=true to replace an existing file.",
     downloadAttachmentSchema,
     downloadAttachmentHandler(jira, jiraConfig) as any,
+);
+
+server.tool(
+    "upload-attachment",
+    "Upload a local file onto a Jira issue and append !filename|thumbnail! to the description so the issue shows a thumbnail preview. Pass issueKey or a browse URL and filePath. Optional filename overrides the stored name. Existing description text is kept.",
+    uploadAttachmentSchema,
+    uploadAttachmentHandler(jira, jiraConfig) as any,
 );
 
 server.tool(
