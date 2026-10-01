@@ -82,28 +82,6 @@ export function thumbnailWiki(filename: string): string | null {
     return `!${filename}|thumbnail!`;
 }
 
-export function appendThumbnailMarkup(
-    description: string,
-    filename: string,
-): { description: string; alreadyPresent: boolean } | { error: string } {
-    const token = thumbnailWiki(filename);
-    if (!token) {
-        return {
-            error: `Filename "${filename}" cannot be embedded as a thumbnail. Rename it so it does not contain ! or |.`,
-        };
-    }
-
-    if (description.includes(token)) {
-        return { description, alreadyPresent: true };
-    }
-
-    const trimmed = description.replace(/\s+$/, "");
-    return {
-        description: trimmed ? `${trimmed}\n\n${token}` : token,
-        alreadyPresent: false,
-    };
-}
-
 function firstUploaded(
     created: unknown,
     storedName: string,
@@ -210,12 +188,12 @@ export const uploadAttachmentHandler =
                 );
             }
 
-            const preview = await insertThumbnailPreview(
-                jira,
-                resolvedIssueKey,
-                name,
+            const wiki = thumbnailWiki(name);
+            lines.push(
+                wiki
+                    ? `Wiki thumbnail: ${wiki}`
+                    : `Wiki thumbnail is unavailable: "${name}" contains ! or |.`,
             );
-            lines.push(preview);
 
             return textResult(lines.join("\n"));
         } catch (error) {
@@ -225,43 +203,3 @@ export const uploadAttachmentHandler =
             );
         }
     };
-
-async function insertThumbnailPreview(
-    jira: Version2Client,
-    issueKey: string,
-    filename: string,
-): Promise<string> {
-    const token = thumbnailWiki(filename);
-    if (!token) {
-        return `Preview was not inserted: filename "${filename}" cannot be embedded as !name|thumbnail!.`;
-    }
-
-    try {
-        const issue = await jira.issues.getIssue({
-            issueIdOrKey: issueKey,
-            fields: ["description"],
-        });
-        const current = (issue as { fields?: { description?: unknown } })
-            ?.fields?.description;
-        if (current != null && typeof current !== "string") {
-            return `Preview was not inserted: description is not wiki text. Add ${token} manually.`;
-        }
-
-        const appended = appendThumbnailMarkup(current ?? "", filename);
-        if ("error" in appended) {
-            return `Preview was not inserted: ${appended.error}`;
-        }
-        if (appended.alreadyPresent) {
-            return `Preview already in description: ${token}`;
-        }
-
-        await jira.issues.editIssue({
-            issueIdOrKey: issueKey,
-            fields: { description: appended.description },
-        });
-        return `Preview appended to description: ${token}`;
-    } catch (error) {
-        console.error("Error inserting attachment preview:", error);
-        return `Attachment is on the issue, but the thumbnail preview was not inserted: ${formatJiraError(error)}. Add ${token} to the description manually.`;
-    }
-}

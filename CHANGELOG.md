@@ -2,6 +2,12 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.9.1] - 2026-10-01
+
+### Изменено
+
+- **`upload-attachment`** больше не дописывает `!filename|thumbnail!` в description. Tool только загружает файл и возвращает эту wiki-строку; куда её вставить, решает вызывающий (`edit-issue` или `create-comment`).
+
 ## [1.9.0] - 2026-10-01
 
 ### Добавлено

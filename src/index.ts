@@ -261,7 +261,7 @@ server.tool(
 
 server.tool(
     "upload-attachment",
-    "Upload a local file onto a Jira issue and append !filename|thumbnail! to the description so the issue shows a thumbnail preview. Pass issueKey or a browse URL and filePath. Optional filename overrides the stored name. Existing description text is kept.",
+    "Upload a local file onto a Jira issue. Pass issueKey or a browse URL and filePath. Optional filename overrides the stored name. Does not edit the description or comments.",
     uploadAttachmentSchema,
     uploadAttachmentHandler(jira, jiraConfig) as any,
 );
