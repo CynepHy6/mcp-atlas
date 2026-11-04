@@ -2,6 +2,16 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.10.0] - 2026-11-04
+
+### Добавлено
+
+- У каждого инструмента есть MCP-аннотации: `readOnlyHint: true` у чтения и поиска (Jira, Insight, Zephyr, Confluence, список вложений), `readOnlyHint: false` у создания, правки, загрузки и `download-attachment` (пишет файл на диск), `destructiveHint: true` у тех, что перезаписывают или удаляют: правка задачи, комментария, страницы и тест-кейса, `upsert-zephyr-testcase`, `download-attachment` и оба `delete-*`. Клиент больше не угадывает по имени: читающие инструменты идут без вопроса человеку и работают в режимах только чтения.
+
+### Изменено
+
+- Нижняя граница `@modelcontextprotocol/sdk` — `^1.11.0`: аннотации в `server.tool` появились в этой версии.
+
 ## [1.9.1] - 2026-10-01
 
 ### Изменено

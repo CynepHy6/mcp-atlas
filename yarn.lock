@@ -532,7 +532,7 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@modelcontextprotocol/sdk@^1.4.0":
+"@modelcontextprotocol/sdk@^1.11.0":
   version "1.15.1"
   resolved "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.15.1.tgz#30a235f91e144b62ef1810bc63679e423bac37ec"
   integrity sha512-W/XlN9c528yYn+9MQkVjxiTPgPxoxt+oczfjHBDsJx0+59+O7B75Zhsp0B16Xbwbz8ANISDajh6+V7nIcPMc5w==
