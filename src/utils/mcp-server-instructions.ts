@@ -1,12 +1,14 @@
 /** MCP server instructions (InitializeResult.instructions) — visible to the agent before tool choice. */
 export const MCP_SERVER_INSTRUCTIONS = [
-    "Jira issue URL or key (browse/GRW-…): call read-description first; read-comments for discussion context.",
+    "Jira issue URL or key (browse/PROJ-…): call read-description first (pass includeComments=true and optional commentsLimit to get recent comments in the same call; use read-comments with optional limit when you only need comments).",
+    "Search Jira issues: search-issues omits descriptions by default (includeDescription=false); set includeDescription=true only when summaries are not enough.",
     "Create a Jira issue: create-issue (projectKey, issueType, summary; description in Jira wiki markup, not Markdown). Sub-task requires parentKey. On required-field errors retry with additionalFields.",
     "Edit a Jira issue: edit-issue (issueKey or browse URL plus only the fields to change). Description replaces the whole body and must be Jira wiki markup.",
     "Issue labels are on the Labels line from read-description. edit-issue changes them without a description: labels replaces the whole list; addLabels and removeLabels add or remove labels and leave the rest. Do not pass labels together with addLabels or removeLabels.",
     "Create a Jira comment: create-comment (issueKey or browse URL, body in Jira wiki markup). Returns the comment id.",
     "Attach a local file to a Jira issue: upload-attachment (issueKey or browse URL and filePath; optional filename). It only uploads the file. Put the returned !filename|thumbnail! wiki markup where you choose, via edit-issue or create-comment.",
     "Edit a Jira comment: edit-comment (issueKey, commentId from read-comments, body replaces the whole comment and must be Jira wiki markup). notifyUsers defaults to Jira true when omitted.",
+    "Confluence pages: get-confluence-page returns compact Markdown without comments by default (bodyFormat='compact', includeComments=false); pass includeComments=true (and optional commentsLimit) when comments are needed, and pass bodyFormat='storage' before calling edit-confluence-page.",
     "Zephyr Scale (Tests.jspa, *-Tnnn keys, test cases/runs): use tools in this server only; do not WebFetch or curl Tests.jspa URLs.",
     "Tests.jspa#/v2/testCases?projectId=… is UI navigation only; pass projectKey (test-wdio --qaseProject), not numeric projectId alone.",
     "Unfamiliar Zephyr project: inspect-zephyr-project. test-wdio sync: upsert-zephyr-testcase (inspect → upsert).",

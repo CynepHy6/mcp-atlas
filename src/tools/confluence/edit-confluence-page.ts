@@ -15,7 +15,7 @@ export const editConfluencePageSchema = {
         .string()
         .optional()
         .describe(
-            "New page body in Confluence storage format (HTML/XML), optional if title is provided",
+            "New page body in Confluence storage format (HTML/XML), optional if title is provided. Read existing page with get-confluence-page bodyFormat='storage' before editing.",
         ),
 };
 

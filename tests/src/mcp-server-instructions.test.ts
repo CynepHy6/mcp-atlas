@@ -1,7 +1,7 @@
 import { MCP_SERVER_INSTRUCTIONS } from "../../src/utils/mcp-server-instructions.js";
 
 describe("mcp-server-instructions", () => {
-    it("routes Zephyr and Jira URLs to MCP tools, not WebFetch", () => {
+    it("routes Zephyr, Jira, and Confluence URLs to MCP tools with compact-read guidance", () => {
         expect(MCP_SERVER_INSTRUCTIONS).toContain(
             "do not WebFetch or curl Tests.jspa URLs",
         );
@@ -10,6 +10,11 @@ describe("mcp-server-instructions", () => {
             "projectId=… is UI navigation only",
         );
         expect(MCP_SERVER_INSTRUCTIONS).toContain("read-description first");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("includeComments=true");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("commentsLimit");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("includeDescription=false");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("bodyFormat='storage'");
+        expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-confluence-page");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("create-issue");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("edit-issue");
         expect(MCP_SERVER_INSTRUCTIONS).toContain("Labels line from read-description");

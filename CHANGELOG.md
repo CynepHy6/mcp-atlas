@@ -2,6 +2,20 @@
 
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/); нумерация версий — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.11.0] - 2026-11-14
+
+### Добавлено
+
+- **`read-description`:** опциональные параметры `includeComments` (по умолчанию `false`) и `commentsLimit` для получения описания, структуры связей и последних N комментариев одним вызовом со счётчиком `showing last N of M total`; поддержка передачи browse URL в `issueKey`.
+- **`read-comments`:** опциональный параметр `limit` (последние N комментариев со счётчиком пропущенных; на пагинированных задачах без явного `limit` догрузка хвоста ограничена одной хвостовой страницей на 50 комментариев вместо выкачки всех страниц) и поддержка browse URL в `issueKey`.
+- **`get-confluence-page`:** параметр `bodyFormat: "compact" | "storage"` (по умолчанию `"compact"` — конвертация Confluence Storage XHTML в читаемый Markdown с поддержкой заголовков, списков, таблиц, макросов `code`/`noformat`/`jira`/`status`/`info`/`expand`, ссылок и зачёркивания `<s>`/`<del>`/`line-through` → `~~...~~`; `"storage"` — сырой Storage XHTML для последующей правки через `edit-confluence-page`), опциональный `commentsLimit` (ограничивает число возвращаемых последних комментариев при `includeComments: true`) и вывод HTTP-статуса и текста ошибки API при сбое чтения.
+
+### Изменено
+
+- **`read-description` и `getIssueStructure`:** вместо `fields: ["*all"]` запрашивается целевой набор полей (`ISSUE_DESCRIPTION_FIELDS` / `ISSUE_STRUCTURE_FIELDS`), устранён повторный запрос `getIssue` на ту же задачу при построении структуры связей.
+- **`search-issues` (и `formatSearchResults`):** дефолт `includeDescription` изменён с `true` на `false` (при `false` поле `description` не запрашивается в JQL-поиске и не печатается в выдаче).
+- **`get-confluence-page`:** загрузка комментариев страницы выключена по умолчанию (`includeComments: false`), чтобы не делать лишних HTTP-запросов `/child/comment`, когда комментарии не нужны.
+
 ## [1.10.0] - 2026-11-04
 
 ### Добавлено

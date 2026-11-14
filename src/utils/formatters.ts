@@ -36,7 +36,7 @@ export function formatSearchResults(
     searchResponse: SearchResponse,
     query: string,
     jiraHost: string,
-    includeDescription: boolean = true
+    includeDescription: boolean = false
 ): string {
     if (!searchResponse.issues || searchResponse.issues.length === 0) {
         return `No issues found for query: "${query}"`;
@@ -182,12 +182,35 @@ export interface Comment {
     updated: string;
 }
 
-export function formatComments(issueKey: string, comments: Comment[]): string {
+export interface FormatCommentsOptions {
+    total?: number;
+    limit?: number;
+}
+
+export function formatComments(
+    issueKey: string,
+    comments: Comment[],
+    options?: FormatCommentsOptions,
+): string {
     if (!comments || comments.length === 0) {
         return `No comments found for issue ${issueKey}`;
     }
 
-    const formattedComments = comments.map((comment: Comment) => {
+    const limit =
+        options?.limit !== undefined &&
+        Number.isInteger(options.limit) &&
+        options.limit > 0
+            ? options.limit
+            : undefined;
+    const selectedComments =
+        limit !== undefined ? comments.slice(-limit) : comments;
+    const effectiveTotal = Math.max(
+        options?.total ?? comments.length,
+        comments.length,
+    );
+    const skippedCount = Math.max(0, effectiveTotal - selectedComments.length);
+
+    const formattedComments = selectedComments.map((comment: Comment) => {
         const author = comment.author?.displayName || "Unknown";
         const created = new Date(comment.created).toLocaleString();
         const body = comment.body || "No content";
@@ -201,5 +224,10 @@ export function formatComments(issueKey: string, comments: Comment[]): string {
         ].join("\n");
     });
 
-    return `Comments for ${issueKey}:\n\n${formattedComments.join("\n")}`;
+    const header =
+        skippedCount > 0
+            ? `Comments for ${issueKey} (showing last ${selectedComments.length} of ${effectiveTotal} total, ${skippedCount} earlier skipped):`
+            : `Comments for ${issueKey}:`;
+
+    return `${header}\n\n${formattedComments.join("\n")}`;
 }

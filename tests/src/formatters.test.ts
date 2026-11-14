@@ -13,7 +13,7 @@ describe("Formatters", () => {
     const JIRA_HOST = "https://test-jira.example.com";
 
     describe("formatSearchResults", () => {
-        it("should format search results correctly", () => {
+        it("should format search results compactly without description by default", () => {
             const mockResponse: SearchResponse = {
                 issues: [
                     {
@@ -51,6 +51,33 @@ describe("Formatters", () => {
             );
             expect(formatted).toContain("Project: VIM | Assignee: John Doe");
             expect(formatted).toContain(`URL: ${JIRA_HOST}/browse/VIM-123`);
+            expect(formatted).not.toContain("Description:");
+        });
+
+        it("should include description when includeDescription is true", () => {
+            const mockResponse: SearchResponse = {
+                issues: [
+                    {
+                        key: "VIM-123",
+                        fields: {
+                            summary: "Test issue",
+                            description: "Test description",
+                            created: "2025-01-01T12:00:00.000+0000",
+                            updated: "2025-01-02T14:00:00.000+0000",
+                        },
+                    },
+                ],
+                total: 1,
+                startAt: 0,
+                maxResults: 50,
+            };
+
+            const formatted = formatSearchResults(
+                mockResponse,
+                "test",
+                JIRA_HOST,
+                true
+            );
             expect(formatted).toContain("Description: Test description");
         });
 
@@ -339,6 +366,43 @@ describe("Formatters", () => {
             const formatted = formatComments("VIM-12345", comments);
             expect(formatted).toContain("Author: Test User");
             expect(formatted).toContain("Comment:\nNo content");
+        });
+
+        it("should slice last N comments and display skipped count when limit < total", () => {
+            const comments: Comment[] = [
+                {
+                    id: "1",
+                    author: { displayName: "User 1" },
+                    body: "First",
+                    created: "2025-01-01T10:00:00.000+0000",
+                    updated: "2025-01-01T10:00:00.000+0000",
+                },
+                {
+                    id: "2",
+                    author: { displayName: "User 2" },
+                    body: "Second",
+                    created: "2025-01-02T10:00:00.000+0000",
+                    updated: "2025-01-02T10:00:00.000+0000",
+                },
+                {
+                    id: "3",
+                    author: { displayName: "User 3" },
+                    body: "Third",
+                    created: "2025-01-03T10:00:00.000+0000",
+                    updated: "2025-01-03T10:00:00.000+0000",
+                },
+            ];
+
+            const formatted = formatComments("VIM-999", comments, {
+                limit: 2,
+                total: 5,
+            });
+            expect(formatted).toContain(
+                "Comments for VIM-999 (showing last 2 of 5 total, 3 earlier skipped):",
+            );
+            expect(formatted).not.toContain("First");
+            expect(formatted).toContain("Second");
+            expect(formatted).toContain("Third");
         });
     });
 });

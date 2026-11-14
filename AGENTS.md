@@ -65,6 +65,9 @@ src/
     insight/
     zephyr/             # test cases, runs, results
   utils/
+    confluence-storage.ts # конвертация Confluence Storage XHTML → компактный Markdown
+    formatters.ts       # форматирование Jira описаний, комментариев и поиска
+    issue-relationships.ts # структура связей задачи (родитель, эпик, подзадачи)
     zephyr-utils.ts     # форматирование, extract key из URL
     zephyr-wdio-sync.ts # parse it(), upsert helpers, inspect project
     validation.ts       # проверка env
@@ -79,7 +82,7 @@ tests/
 
 Единая маршрутизация URL → tools: `src/utils/mcp-server-instructions.ts` → `InitializeResult.instructions` в `src/index.ts`. Cursor подмешивает её агенту как `serverUseInstructions` на каждый ход.
 
-**Содержит:** Jira issue → `read-description`; создание/правка задачи → `create-issue` / `edit-issue`; комментарий → `create-comment` / `edit-comment` (`commentId` из `read-comments`); Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
+**Содержит:** Jira issue → `read-description` (опционально `includeComments` + `commentsLimit` одним вызовом); поиск → `search-issues` (`includeDescription=false` по умолчанию); создание/правка задачи → `create-issue` / `edit-issue`; комментарий → `create-comment` / `edit-comment` (`commentId` из `read-comments`); Confluence → `get-confluence-page` (`bodyFormat='compact'` и `includeComments=false` по умолчанию; `bodyFormat='storage'` перед `edit-confluence-page`); Zephyr (`Tests.jspa`, `*-Tnnn`) → tools этого сервера, без WebFetch/curl UI-URL; `projectId` в hash UI → `projectKey` (`test-wdio --qaseProject`); Insight asset URL → `get-insight-asset` / `search-insight-assets`.
 
 **Не дублировать** те же правила в descriptions отдельных tools — только в `MCP_SERVER_INSTRUCTIONS`.
 
@@ -93,17 +96,20 @@ tests/
 
 | Задача | Tool |
 |--------|------|
-| Контекст по тикету | `read-description`, затем `read-comments` |
+| Контекст по тикету | `read-description` (ключ или browse URL; `includeComments=true` и опц. `commentsLimit` — последние N комментариев тем же вызовом) |
+| Отдельное чтение комментариев | `read-comments` (ключ или browse URL; опц. `limit` — последние N комментариев со счётчиком пропущенных) |
 | Создать задачу | `create-issue` (`projectKey`, `issueType`, `summary`; description — Jira wiki markup; Sub-task — `parentKey`) |
 | Править задачу | `edit-issue` (ключ или browse URL + только изменяемые поля; description заменяет тело целиком) |
 | Метки | `read-description` (строка `Labels`); правка — `edit-issue` без description |
 | Создать комментарий | `create-comment` (`issueKey` или browse URL, `body` — wiki markup) |
 | Править комментарий | `edit-comment` (`issueKey`, `commentId` из `read-comments`, `body` заменяет текст целиком; `notifyUsers` необязателен) |
-| Поиск связанных задач | `search-issues` |
+| Поиск связанных задач | `search-issues` (`includeDescription=false` по умолчанию; `includeDescription=true` добавляет усечённые описания) |
 | Ворклоги | `get-recent-worklogs`, `get-worklogs-by-days`, `get-worklogs` |
 | Вложения: список | `list-attachments` (id, filename, mimeType, size, contentUrl) |
 | Вложения: скачать | `download-attachment` (`attachmentId` или `issueKey`+`filename`, `saveDir`, `overwrite`) |
 | Вложения: загрузить | `upload-attachment` (`issueKey` или browse URL, `filePath`; опц. `filename`) |
+
+`read-description` запрашивает только поля, нужные для карточки и связей (`ISSUE_DESCRIPTION_FIELDS` на базе `ISSUE_STRUCTURE_FIELDS`, без `*all` и без несуществующих в REST v2 имён `epic`/`epicLink`), переиспользует загруженную задачу при построении `getIssueStructure` и добавляет поле `comment` только при `includeComments=true`. Если встроенная страница комментариев пагинирована сервером, без явного лимита догружается хвостовая страница (последние 50 комментариев за один запрос со счётчиком пропущенных); для большего числа передавай явный `commentsLimit` / `limit`.
 
 `create-issue` / `edit-issue`: description — **Jira wiki markup**, не Markdown. Sub-task на create без `parentKey` tool отклоняет локально. `edit-issue` без полей для изменения не вызывает Jira. Обязательные custom fields проекта — в `additionalFields` (ответ 400 от Jira перечисляет недостающие).
 
@@ -122,11 +128,14 @@ tests/
 
 | Задача | Tool |
 |--------|------|
-| Прочитать страницу | `get-confluence-page` |
+| Прочитать страницу (компактно) | `get-confluence-page` (`bodyFormat="compact"` и `includeComments=false` по умолчанию; опц. `includeComments=true`, `commentsLimit`) |
+| Прочитать исходный XHTML перед правкой | `get-confluence-page` с `bodyFormat="storage"` |
 | Найти страницу | `search-confluence-pages` |
 | Создать / править | `create-confluence-page`, `edit-confluence-page` |
 
-Контент — **Confluence Storage Format** (HTML/XML).
+`get-confluence-page` по умолчанию (`bodyFormat: "compact"`, `includeComments: false`) переводит Confluence Storage XHTML в компактный Markdown (заголовки, списки, чек-листы `ac:task-list`, таблицы, блоки кода `ac:structured-macro ac:name="code"`, ссылки `ac:link`, макросы `jira`/`status`/`info`/`expand`, зачёркивание `<s>`/`<del>`/`line-through` → `~~...~~`) и не делает лишних HTTP-запросов за комментариями.
+
+Запись (`create-confluence-page`, `edit-confluence-page`) принимает **Confluence Storage Format** (HTML/XML). Перед вызовом `edit-confluence-page` для изменения тела страницы нужно прочитать исходную разметку через `get-confluence-page` с `bodyFormat: "storage"`.
 
 ### Zephyr Scale
 

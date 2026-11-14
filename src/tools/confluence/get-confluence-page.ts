@@ -1,7 +1,10 @@
-import { AxiosInstance } from "axios";
+import { AxiosError, AxiosInstance } from "axios";
 import { z } from "zod";
 import { ConfluenceConfig } from "../../clients/confluence-client.js";
+import { confluenceStorageToMarkdown } from "../../utils/confluence-storage.js";
 import { validateConfluenceConfig } from "../../utils/validation.js";
+
+export type ConfluenceBodyFormat = "compact" | "storage";
 
 interface ConfluenceUser {
     displayName?: string;
@@ -60,6 +63,24 @@ interface ConfluenceCommentsResponse {
 const normalizeConfluenceHost = (host: string): string =>
     host.includes("://") ? host.replace(/\/$/, "") : `https://${host}`;
 
+const formatConfluenceError = (error: unknown): string => {
+    const axiosError = error as AxiosError<{ message?: string }>;
+    const status = axiosError?.response?.status;
+    const responseMessage = axiosError?.response?.data?.message;
+
+    if (status && responseMessage) {
+        return `HTTP ${status}: ${responseMessage}`;
+    }
+    if (responseMessage) {
+        return responseMessage;
+    }
+    if (status) {
+        return `HTTP ${status}: ${(error as Error)?.message || "Request failed"}`;
+    }
+
+    return (error as Error)?.message || String(error);
+};
+
 const formatCreatedAt = (page: {
     history?: { createdDate?: string };
     version?: { when?: string };
@@ -76,19 +97,27 @@ const formatCreatedAt = (page: {
 };
 
 const extractPageId = (pageIdOrUrl: string): string | null => {
-    if (!pageIdOrUrl.includes("/")) {
-        return pageIdOrUrl;
+    const trimmed = pageIdOrUrl.trim();
+    if (!trimmed) {
+        return null;
     }
 
-    const pageIdMatch = pageIdOrUrl.match(/[?&]pageId=(\d+)/);
+    if (!trimmed.includes("/")) {
+        return trimmed;
+    }
+
+    const pageIdMatch = trimmed.match(/[?&]pageId=(\d+)/);
     if (pageIdMatch) {
         return pageIdMatch[1];
     }
 
-    const urlParts = pageIdOrUrl.split("/");
+    const urlParts = trimmed.split("/");
     const pageIndex = urlParts.findIndex((part) => part === "pages");
     if (pageIndex >= 0 && pageIndex < urlParts.length - 1) {
-        return urlParts[pageIndex + 1];
+        const candidate = urlParts[pageIndex + 1]?.split(/[?#]/)[0]?.trim();
+        if (candidate) {
+            return candidate;
+        }
     }
 
     return null;
@@ -129,15 +158,39 @@ const formatCommentUrl = (
     return `${baseUrl}${webui}`;
 };
 
+const formatBodyValue = (
+    storageValue: string | undefined,
+    bodyFormat: ConfluenceBodyFormat,
+): string => {
+    if (!storageValue) {
+        return "";
+    }
+    if (bodyFormat === "storage") {
+        return storageValue;
+    }
+    return confluenceStorageToMarkdown(storageValue);
+};
+
 const formatConfluenceComments = (
     comments: ConfluenceComment[],
-    confluenceConfig: ConfluenceConfig
+    confluenceConfig: ConfluenceConfig,
+    bodyFormat: ConfluenceBodyFormat,
+    commentsLimit?: number,
 ): string => {
     if (comments.length === 0) {
         return "Comments:\nNo comments found.";
     }
 
-    const commentBlocks = comments.map((comment, index) => {
+    const selectedComments =
+        commentsLimit !== undefined
+            ? comments.slice(-commentsLimit)
+            : comments;
+    const skippedCount = Math.max(
+        0,
+        comments.length - selectedComments.length,
+    );
+
+    const commentBlocks = selectedComments.map((comment, index) => {
         const commentLines = [
             `${index + 1}. Author: ${formatCommentAuthor(comment)}`,
             `   Date: ${formatCommentDate(comment)}`,
@@ -169,14 +222,23 @@ const formatConfluenceComments = (
             commentLines.push(`   URL: ${commentUrl}`);
         }
 
+        const formattedCommentBody = formatBodyValue(
+            comment.body?.storage?.value,
+            bodyFormat,
+        );
         commentLines.push(
-            `   Comment:\n${comment.body?.storage?.value || "No content"}`
+            `   Comment:\n${formattedCommentBody || "No content"}`
         );
 
         return commentLines.join("\n");
     });
 
-    return `Comments (${comments.length}):\n\n${commentBlocks.join("\n\n")}`;
+    const header =
+        skippedCount > 0
+            ? `Comments (showing last ${selectedComments.length} of ${comments.length} total, ${skippedCount} earlier skipped):`
+            : `Comments (${comments.length}):`;
+
+    return `${header}\n\n${commentBlocks.join("\n\n")}`;
 };
 
 const getCommentsExpand = (): string =>
@@ -227,16 +289,23 @@ const fetchAllComments = async (
 const getCommentsSection = async (
     confluence: AxiosInstance,
     confluenceConfig: ConfluenceConfig,
-    pageId: string
+    pageId: string,
+    bodyFormat: ConfluenceBodyFormat,
+    commentsLimit?: number,
 ): Promise<string> => {
     try {
         const comments = await fetchAllComments(confluence, pageId);
-        return formatConfluenceComments(comments, confluenceConfig);
+        return formatConfluenceComments(
+            comments,
+            confluenceConfig,
+            bodyFormat,
+            commentsLimit,
+        );
     } catch (error) {
         console.error("Error fetching Confluence comments:", error);
-        return `Comments:\nFailed to retrieve comments: ${
-            (error as Error).message
-        }`;
+        return `Comments:\nFailed to retrieve comments: ${formatConfluenceError(
+            error,
+        )}`;
     }
 };
 
@@ -248,6 +317,26 @@ export const getConfluencePageSchema = {
         .boolean()
         .default(true)
         .describe("Include page body content (default: true)"),
+    bodyFormat: z
+        .enum(["compact", "storage"])
+        .default("compact")
+        .describe(
+            "Page body representation: 'compact' (default) converts Confluence Storage XHTML into clean Markdown (preserving headings, lists, tables, code macros, links, and ~~strikethrough~~); use 'storage' to read raw Confluence Storage XHTML required before edit-confluence-page.",
+        ),
+    includeComments: z
+        .boolean()
+        .default(false)
+        .describe(
+            "Fetch and include page comments (default: false; avoids extra HTTP requests when comments are not needed)",
+        ),
+    commentsLimit: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe(
+            "Maximum number of latest page comments to render in the response when includeComments=true (trims output size with total and skipped counts)",
+        ),
     expandProperties: z
         .array(z.string())
         .optional()
@@ -260,11 +349,17 @@ export const getConfluencePageHandler =
     (confluence: AxiosInstance, confluenceConfig: ConfluenceConfig) =>
     async ({
         pageIdOrUrl,
-        includeBody,
+        includeBody = true,
+        bodyFormat = "compact",
+        includeComments = false,
+        commentsLimit,
         expandProperties,
     }: {
         pageIdOrUrl: string;
-        includeBody: boolean;
+        includeBody?: boolean;
+        bodyFormat?: ConfluenceBodyFormat;
+        includeComments?: boolean;
+        commentsLimit?: number;
         expandProperties?: string[];
     }) => {
         const configError = validateConfluenceConfig(confluenceConfig);
@@ -274,6 +369,20 @@ export const getConfluencePageHandler =
                     {
                         type: "text",
                         text: `Configuration error: ${configError}`,
+                    },
+                ],
+            };
+        }
+
+        if (
+            commentsLimit !== undefined &&
+            (!Number.isInteger(commentsLimit) || commentsLimit < 1)
+        ) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `commentsLimit must be a positive integer (got ${commentsLimit}).`,
                     },
                 ],
             };
@@ -333,16 +442,28 @@ export const getConfluencePageHandler =
                 webui ? `${baseUrl}${webui}` : "URL not available"
             }\n`;
 
-            if (includeBody && page.body?.storage?.value) {
-                content += `\nContent:\n${page.body.storage.value}`;
+            if (includeBody && page.body?.storage?.value !== undefined) {
+                const formattedBody = formatBodyValue(
+                    page.body.storage.value,
+                    bodyFormat,
+                );
+                if (formattedBody) {
+                    content += `\nContent:\n${formattedBody}`;
+                }
             }
 
-            const commentsSection = await getCommentsSection(
-                confluence,
-                confluenceConfig,
-                pageId
-            );
-            content += `\n\n${commentsSection}`;
+            if (includeComments) {
+                const commentsSection = await getCommentsSection(
+                    confluence,
+                    confluenceConfig,
+                    pageId,
+                    bodyFormat,
+                    commentsLimit,
+                );
+                content += `\n\n${commentsSection}`;
+            } else if (commentsLimit !== undefined) {
+                content += `\n\nNote: commentsLimit=${commentsLimit} was ignored because includeComments=false. Pass includeComments=true to include comments.`;
+            }
 
             return {
                 content: [
@@ -358,9 +479,9 @@ export const getConfluencePageHandler =
                 content: [
                     {
                         type: "text",
-                        text: `Failed to retrieve page: ${
-                            (error as Error).message
-                        }`,
+                        text: `Failed to retrieve page: ${formatConfluenceError(
+                            error,
+                        )}`,
                     },
                 ],
             };
