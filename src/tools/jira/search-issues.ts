@@ -2,6 +2,7 @@ import { Version2Client } from "jira.js/version2";
 import { z } from "zod";
 import { JiraConfig } from "../../clients/jira-client.js";
 import { formatSearchResults } from "../../utils/formatters.js";
+import { formatJiraError } from "../../utils/jira-issue.js";
 import { buildSearchJQL } from "../../utils/jql-builder.js";
 import { validateJiraConfig } from "../../utils/validation.js";
 
@@ -29,26 +30,28 @@ export const searchIssuesSchema = {
         .describe("Filter by assignee username or 'currentUser()'"),
     includeDescription: z
         .boolean()
-        .default(true)
-        .describe("Include issue description in results (default: true)"),
+        .default(false)
+        .describe(
+            "Include truncated issue description in results (default: false)",
+        ),
 };
 
 export const searchIssuesHandler =
     (jira: Version2Client, jiraConfig: JiraConfig) =>
     async ({
         query,
-        maxResults,
+        maxResults = 20,
         projectKeys,
         status,
         assignee,
-        includeDescription,
+        includeDescription = false,
     }: {
         query: string;
-        maxResults: number;
+        maxResults?: number;
         projectKeys?: string[];
         status?: string[];
         assignee?: string;
-        includeDescription: boolean;
+        includeDescription?: boolean;
     }) => {
         const configError = validateJiraConfig(jiraConfig);
         if (configError) {
@@ -62,8 +65,18 @@ export const searchIssuesHandler =
             };
         }
 
+        if (!query || !query.trim()) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: "Search query must not be empty.",
+                    },
+                ],
+            };
+        }
+
         try {
-            // Build JQL query using the refactored function
             const jqlQuery = buildSearchJQL(
                 query,
                 projectKeys,
@@ -79,21 +92,23 @@ export const searchIssuesHandler =
                 startAt: 0,
             });
 
+            const fields = [
+                "key",
+                "summary",
+                ...(includeDescription ? ["description"] : []),
+                "issuetype",
+                "priority",
+                "status",
+                "assignee",
+                "project",
+                "created",
+                "updated",
+            ];
+
             const searchResults =
                 await jira.issueSearch.searchForIssuesUsingJql({
                     jql: jqlQuery,
-                    fields: [
-                        "key",
-                        "summary",
-                        "description",
-                        "issuetype",
-                        "priority",
-                        "status",
-                        "assignee",
-                        "project",
-                        "created",
-                        "updated",
-                    ],
+                    fields,
                     maxResults: maxResults,
                     startAt: 0,
                 });
@@ -109,7 +124,6 @@ export const searchIssuesHandler =
                 };
             }
 
-            // Format results using the refactored function
             const formattedResults = formatSearchResults(
                 searchResults as any,
                 query,
@@ -131,7 +145,7 @@ export const searchIssuesHandler =
                 content: [
                     {
                         type: "text",
-                        text: `Search failed: ${(error as Error).message}`,
+                        text: `Search failed: ${formatJiraError(error)}`,
                     },
                 ],
             };

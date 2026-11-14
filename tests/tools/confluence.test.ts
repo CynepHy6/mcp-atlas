@@ -640,20 +640,7 @@ describe("Confluence Tools", () => {
     });
 
     describe("getConfluencePageHandler", () => {
-        const mockEmptyComments = (pageId: string) => {
-            nock("https://test-confluence.example.com")
-                .get(`/rest/api/content/${pageId}/child/comment`)
-                .query({
-                    expand: "body.storage,history,version,extensions.resolution,extensions.inlineProperties",
-                    limit: 100,
-                    start: 0,
-                })
-                .reply(200, {
-                    results: [],
-                });
-        };
-
-        it("should get page by ID successfully", async () => {
+        it("should get page in compact format without comments by default", async () => {
             const mockPage = {
                 id: "123456",
                 title: "Test Page",
@@ -674,7 +661,7 @@ describe("Confluence Tools", () => {
                 },
                 body: {
                     storage: {
-                        value: "<p>This is test content</p>",
+                        value: "<h2>Overview</h2><p>This is <strong>test</strong> content with <s>cancelled item</s></p><ac:structured-macro ac:name=\"code\"><ac:parameter ac:name=\"language\">ts</ac:parameter><ac:plain-text-body><![CDATA[const ready = true;]]></ac:plain-text-body></ac:structured-macro>",
                     },
                 },
             };
@@ -685,7 +672,6 @@ describe("Confluence Tools", () => {
                     expand: "space,history,version,body.storage",
                 })
                 .reply(200, mockPage);
-            mockEmptyComments("123456");
 
             const handler = getConfluencePageHandler(
                 confluenceClient,
@@ -693,23 +679,69 @@ describe("Confluence Tools", () => {
             );
             const result = await handler({
                 pageIdOrUrl: "123456",
-                includeBody: true,
             });
 
-            expect(result.content[0].text).toContain("Title: Test Page");
-            expect(result.content[0].text).toContain("Space: Test Space");
-            expect(result.content[0].text).toContain("Type: page");
-            expect(result.content[0].text).toContain("Status: current");
-            expect(result.content[0].text).toContain("Created:");
-            expect(result.content[0].text).toContain("This is test content");
-            expect(result.content[0].text).toContain(
+            const text = result.content[0].text;
+            expect(text).toContain("Title: Test Page");
+            expect(text).toContain("Space: Test Space");
+            expect(text).toContain("Type: page");
+            expect(text).toContain("Status: current");
+            expect(text).toContain("Created:");
+            expect(text).toContain("## Overview");
+            expect(text).toContain(
+                "This is **test** content with ~~cancelled item~~",
+            );
+            expect(text).toContain("```ts\nconst ready = true;\n```");
+            expect(text).not.toContain("<ac:structured-macro");
+            expect(text).toContain(
                 "URL: https://test-confluence.example.com/display/SPACE/Test+Page",
             );
-            expect(result.content[0].text).toContain("Comments:");
-            expect(result.content[0].text).toContain("No comments found.");
+            expect(text).not.toContain("Comments:");
         });
 
-        it("should extract page ID from viewpage.action URL", async () => {
+        it("should return raw Confluence Storage XHTML when bodyFormat is 'storage'", async () => {
+            const rawStorage =
+                '<p>Raw <s>storage</s></p><ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[x = 1]]></ac:plain-text-body></ac:structured-macro>';
+            const mockPage = {
+                id: "123460",
+                title: "Editable Page",
+                type: "page",
+                status: "current",
+                space: { name: "Test Space" },
+                history: { createdDate: "2023-01-01T00:00:00.000Z" },
+                version: { when: "2023-01-02T00:00:00.000Z" },
+                _links: {
+                    base: "https://test-confluence.example.com",
+                    webui: "/display/SPACE/Editable+Page",
+                },
+                body: {
+                    storage: {
+                        value: rawStorage,
+                    },
+                },
+            };
+
+            nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123460")
+                .query({
+                    expand: "space,history,version,body.storage",
+                })
+                .reply(200, mockPage);
+
+            const handler = getConfluencePageHandler(
+                confluenceClient,
+                mockConfig,
+            );
+            const result = await handler({
+                pageIdOrUrl: "123460",
+                bodyFormat: "storage",
+            });
+
+            expect(result.content[0].text).toContain(`Content:\n${rawStorage}`);
+            expect(result.content[0].text).not.toContain("Comments:");
+        });
+
+        it("should extract page ID from viewpage.action URL without fetching comments by default", async () => {
             const mockPage = {
                 id: "789012",
                 title: "Another Test Page",
@@ -736,7 +768,6 @@ describe("Confluence Tools", () => {
                     expand: "space,history,version",
                 })
                 .reply(200, mockPage);
-            mockEmptyComments("789012");
 
             const handler = getConfluencePageHandler(
                 confluenceClient,
@@ -751,7 +782,7 @@ describe("Confluence Tools", () => {
             expect(result.content[0].text).toContain(
                 "Title: Another Test Page",
             );
-            expect(result.content[0].text).toContain("No comments found.");
+            expect(result.content[0].text).not.toContain("Comments:");
         });
 
         it("should extract page ID from pages URL format", async () => {
@@ -781,7 +812,6 @@ describe("Confluence Tools", () => {
                     expand: "space,history,version",
                 })
                 .reply(200, mockPage);
-            mockEmptyComments("345678");
 
             const handler = getConfluencePageHandler(
                 confluenceClient,
@@ -794,7 +824,7 @@ describe("Confluence Tools", () => {
             });
 
             expect(result.content[0].text).toContain("Title: Third Test Page");
-            expect(result.content[0].text).toContain("No comments found.");
+            expect(result.content[0].text).not.toContain("Comments:");
         });
 
         it("should fall back to version date when history date is absent", async () => {
@@ -821,7 +851,6 @@ describe("Confluence Tools", () => {
                     expand: "space,history,version",
                 })
                 .reply(200, mockPage);
-            mockEmptyComments("345679");
 
             const handler = getConfluencePageHandler(
                 confluenceClient,
@@ -834,10 +863,10 @@ describe("Confluence Tools", () => {
 
             expect(result.content[0].text).toContain("Created:");
             expect(result.content[0].text).not.toContain("Invalid Date");
-            expect(result.content[0].text).toContain("No comments found.");
+            expect(result.content[0].text).not.toContain("Comments:");
         });
 
-        it("should include page comments by default", async () => {
+        it("should include page comments when includeComments is true", async () => {
             const mockPage = {
                 id: "123457",
                 title: "Commented Page",
@@ -866,7 +895,7 @@ describe("Confluence Tools", () => {
                         status: "current",
                         body: {
                             storage: {
-                                value: "<p>Inline comment body</p>",
+                                value: "<p>Inline comment <s>old</s> body</p>",
                             },
                         },
                         history: {
@@ -915,6 +944,7 @@ describe("Confluence Tools", () => {
             const result = await handler({
                 pageIdOrUrl: "123457",
                 includeBody: false,
+                includeComments: true,
             });
 
             expect(result.content[0].text).toContain("Comments (1):");
@@ -924,7 +954,90 @@ describe("Confluence Tools", () => {
             expect(result.content[0].text).toContain(
                 "Selected text: ready for test",
             );
-            expect(result.content[0].text).toContain("Inline comment body");
+            expect(result.content[0].text).toContain(
+                "Inline comment ~~old~~ body",
+            );
+        });
+
+        it("should apply commentsLimit when includeComments is true and ignore commentsLimit when false", async () => {
+            const mockPage = {
+                id: "123461",
+                title: "Many Comments Page",
+                type: "page",
+                status: "current",
+                space: { name: "Test Space" },
+                history: { createdDate: "2023-01-01T00:00:00.000Z" },
+                version: { when: "2023-01-02T00:00:00.000Z" },
+                _links: {
+                    base: "https://test-confluence.example.com",
+                    webui: "/display/SPACE/Many+Comments+Page",
+                },
+            };
+
+            const commentsResponse = {
+                results: [1, 2, 3, 4].map((i) => ({
+                    id: `c-${i}`,
+                    type: "comment",
+                    status: "current",
+                    body: { storage: { value: `<p>Comment #${i}</p>` } },
+                    history: {
+                        createdDate: "2023-02-03T04:05:06.000Z",
+                        createdBy: { displayName: `Author ${i}` },
+                    },
+                })),
+            };
+
+            nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123461")
+                .query({ expand: "space,history,version" })
+                .times(2)
+                .reply(200, mockPage);
+
+            const commentScope = nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123461/child/comment")
+                .query({
+                    expand: "body.storage,history,version,extensions.resolution,extensions.inlineProperties",
+                    limit: 100,
+                    start: 0,
+                })
+                .once()
+                .reply(200, commentsResponse);
+
+            const handler = getConfluencePageHandler(
+                confluenceClient,
+                mockConfig,
+            );
+
+            // When includeComments is false, comments endpoint must NOT be called even with commentsLimit
+            const withoutComments = await handler({
+                pageIdOrUrl: "123461",
+                includeBody: false,
+                includeComments: false,
+                commentsLimit: 2,
+            });
+            expect(withoutComments.content[0].text).not.toContain("Comments (");
+            expect(withoutComments.content[0].text).not.toContain("Comments:");
+            expect(withoutComments.content[0].text).toContain(
+                "Note: commentsLimit=2 was ignored because includeComments=false.",
+            );
+            expect(commentScope.isDone()).toBe(false);
+
+            // When includeComments is true, only last 2 comments are shown
+            const withLimitedComments = await handler({
+                pageIdOrUrl: "123461",
+                includeBody: false,
+                includeComments: true,
+                commentsLimit: 2,
+            });
+            expect(commentScope.isDone()).toBe(true);
+            const text = withLimitedComments.content[0].text;
+            expect(text).toContain(
+                "Comments (showing last 2 of 4 total, 2 earlier skipped):",
+            );
+            expect(text).not.toContain("Comment #1");
+            expect(text).not.toContain("Comment #2");
+            expect(text).toContain("Comment #3");
+            expect(text).toContain("Comment #4");
         });
 
         it("should keep custom expandProperties while including comments", async () => {
@@ -995,6 +1108,7 @@ describe("Confluence Tools", () => {
             const result = await handler({
                 pageIdOrUrl: "123458",
                 includeBody: false,
+                includeComments: true,
                 expandProperties: ["children.comment"],
             });
 
@@ -1004,7 +1118,7 @@ describe("Confluence Tools", () => {
             expect(result.content[0].text).toContain("Footer comment body");
         });
 
-        it("should mention when page comments are absent", async () => {
+        it("should mention when page comments are absent when includeComments is true", async () => {
             const mockPage = {
                 id: "123459",
                 title: "Page Without Comments",
@@ -1050,10 +1164,118 @@ describe("Confluence Tools", () => {
             const result = await handler({
                 pageIdOrUrl: "123459",
                 includeBody: false,
+                includeComments: true,
             });
 
             expect(result.content[0].text).toContain("Comments:");
             expect(result.content[0].text).toContain("No comments found.");
+        });
+
+        it("should reject empty pageIdOrUrl and non-positive commentsLimit without HTTP calls", async () => {
+            const handler = getConfluencePageHandler(
+                confluenceClient,
+                mockConfig,
+            );
+
+            const emptyRes = await handler({
+                pageIdOrUrl: "   ",
+            });
+            expect(emptyRes.content[0].text).toContain(
+                "Cannot extract page ID from URL",
+            );
+
+            const badLimitRes = await handler({
+                pageIdOrUrl: "123456",
+                includeComments: true,
+                commentsLimit: 0,
+            });
+            expect(badLimitRes.content[0].text).toContain(
+                "commentsLimit must be a positive integer",
+            );
+        });
+
+        it("should preserve page content when secondary comments fetch fails", async () => {
+            const mockPage = {
+                id: "123462",
+                title: "Page With Failing Comments",
+                type: "page",
+                status: "current",
+                space: { name: "Test Space" },
+                history: { createdDate: "2023-01-01T00:00:00.000Z" },
+                version: { when: "2023-01-02T00:00:00.000Z" },
+                _links: {
+                    base: "https://test-confluence.example.com",
+                    webui: "/display/SPACE/Failing+Comments",
+                },
+                body: {
+                    storage: {
+                        value: "<p>Page body survives comment error</p>",
+                    },
+                },
+            };
+
+            nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123462")
+                .query({ expand: "space,history,version,body.storage" })
+                .reply(200, mockPage);
+
+            nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123462/child/comment")
+                .query(true)
+                .replyWithError("Comments service unavailable");
+
+            const handler = getConfluencePageHandler(
+                confluenceClient,
+                mockConfig,
+            );
+            const result = await handler({
+                pageIdOrUrl: "123462",
+                includeComments: true,
+            });
+
+            expect(result.content[0].text).toContain(
+                "Page body survives comment error",
+            );
+            expect(result.content[0].text).toContain(
+                "Failed to retrieve comments: Comments service unavailable",
+            );
+        });
+
+        it("should handle empty storage body value cleanly", async () => {
+            const mockPage = {
+                id: "123463",
+                title: "Empty Body Page",
+                type: "page",
+                status: "current",
+                space: { name: "Test Space" },
+                history: { createdDate: "2023-01-01T00:00:00.000Z" },
+                version: { when: "2023-01-02T00:00:00.000Z" },
+                _links: {
+                    base: "https://test-confluence.example.com",
+                    webui: "/display/SPACE/Empty+Body",
+                },
+                body: {
+                    storage: {
+                        value: "",
+                    },
+                },
+            };
+
+            nock("https://test-confluence.example.com")
+                .get("/rest/api/content/123463")
+                .query({ expand: "space,history,version,body.storage" })
+                .reply(200, mockPage);
+
+            const handler = getConfluencePageHandler(
+                confluenceClient,
+                mockConfig,
+            );
+            const result = await handler({
+                pageIdOrUrl: "123463",
+            });
+
+            expect(result.content[0].text).toContain("Title: Empty Body Page");
+            expect(result.content[0].text).not.toContain("Content:");
         });
 
         it("should handle page not found", async () => {
@@ -1073,7 +1295,9 @@ describe("Confluence Tools", () => {
                 includeBody: false,
             });
 
-            expect(result.content[0].text).toContain("Failed to retrieve page");
+            expect(result.content[0].text).toContain(
+                "Failed to retrieve page: HTTP 404: Page not found",
+            );
         });
 
         it("should handle invalid URL format", async () => {
@@ -1130,7 +1354,18 @@ describe("Confluence Tools", () => {
 
         it("should validate getConfluencePageSchema", () => {
             expect(getConfluencePageSchema.pageIdOrUrl).toBeDefined();
-            expect(getConfluencePageSchema.includeBody).toBeDefined();
+            expect(getConfluencePageSchema.includeBody.parse(undefined)).toBe(
+                true,
+            );
+            expect(getConfluencePageSchema.bodyFormat.parse(undefined)).toBe(
+                "compact",
+            );
+            expect(
+                getConfluencePageSchema.includeComments.parse(undefined),
+            ).toBe(false);
+            expect(
+                getConfluencePageSchema.commentsLimit.parse(undefined),
+            ).toBeUndefined();
             expect(getConfluencePageSchema.expandProperties).toBeDefined();
         });
     });

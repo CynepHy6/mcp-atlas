@@ -99,20 +99,45 @@ async function searchEpicStories(
     }
 }
 
+export const EPIC_CUSTOM_FIELDS = [
+    "customfield_10014",
+    "customfield_10006",
+    "customfield_10007",
+] as const;
+
+const PARENT_SUBTASKS_FIELDS = [
+    "subtasks",
+    ...EPIC_CUSTOM_FIELDS,
+] as const;
+
+export const ISSUE_STRUCTURE_FIELDS = [
+    "summary",
+    "status",
+    "issuetype",
+    "priority",
+    "project",
+    "parent",
+    "subtasks",
+    "issuelinks",
+    ...EPIC_CUSTOM_FIELDS,
+] as const;
+
 /**
  * Получает полную структуру связанных задач для тикета
  */
 export async function getIssueStructure(
     jira: Version2Client,
     issueKey: string,
-    host: string
+    host: string,
+    prefetchedIssue?: any,
 ): Promise<IssueStructure> {
-    // Получаем основной тикет с расширенными полями
-    const issue = await jira.issues.getIssue({
-        issueIdOrKey: issueKey,
-        expand: ["parent", "subtasks", "issuelinks"],
-        fields: ["*all"],
-    });
+    const issue =
+        prefetchedIssue ??
+        (await jira.issues.getIssue({
+            issueIdOrKey: issueKey,
+            expand: ["parent", "subtasks", "issuelinks"],
+            fields: [...ISSUE_STRUCTURE_FIELDS],
+        }));
 
     const current = convertToRelatedIssue(issue, host);
     const structure: IssueStructure = {
@@ -128,12 +153,12 @@ export async function getIssueStructure(
     if (issue.fields?.parent) {
         structure.parent = convertToRelatedIssue(issue.fields.parent, host);
 
-        // Получаем полную информацию о родительской задаче с подзадачами
+        // Получаем подзадачи и поля эпика родительской задачи без *all
         try {
             parentIssueWithSubtasks = await jira.issues.getIssue({
                 issueIdOrKey: structure.parent.key,
                 expand: ["subtasks"],
-                fields: ["subtasks", "*all"],
+                fields: [...PARENT_SUBTASKS_FIELDS],
             });
         } catch (error) {
             console.error("Error fetching parent with subtasks:", error);
@@ -240,6 +265,10 @@ export async function getIssueStructure(
  * Ищет поле Epic Link в различных вариантах
  */
 function findEpicField(fields: any): any {
+    if (!fields) {
+        return null;
+    }
+
     // Обычные варианты Epic Link полей
     const epicFields = [
         "customfield_10014", // Стандартное поле Epic Link

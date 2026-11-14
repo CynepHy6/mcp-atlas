@@ -179,7 +179,7 @@ const zephyrTests = createConfiguredZephyrTestsClient();
 const server = new McpServer(
     {
         name: "jira-confluence-mcp",
-        version: "1.7.0",
+        version: "1.11.0",
     },
     {
         capabilities: {
@@ -206,7 +206,7 @@ async function testJiraAuthentication(): Promise<string | null> {
 // Register Jira tools
 server.tool(
     "read-description",
-    "Get the description of a Jira issue. ALWAYS use this tool FIRST when a Jira issue URL or key is mentioned in the user query to understand the full context, requirements, and business logic before proceeding with code analysis or implementation.",
+    "Get the description and related issue structure of a Jira issue (and optionally latest comments via includeComments / commentsLimit). ALWAYS use this tool FIRST when a Jira issue URL or key is mentioned in the user query to understand the full context, requirements, and business logic before proceeding with code analysis or implementation.",
     readDescriptionSchema,
     toolAnnotations("read-description"),
     readDescriptionHandler(jira, jiraConfig) as any,
@@ -214,7 +214,7 @@ server.tool(
 
 server.tool(
     "read-comments",
-    "Get the comments for a Jira issue. Use this tool to get additional context, clarifications, and discussions about the issue after reading the main description.",
+    "Get the comments for a Jira issue (all comments or the latest N via limit). Use this tool when you need standalone or full comment history.",
     readCommentsSchema,
     toolAnnotations("read-comments"),
     readCommentsHandler(jira, jiraConfig) as any,
@@ -439,7 +439,7 @@ server.tool(
 
 server.tool(
     "get-confluence-page",
-    "Get the content of a Confluence page by ID or URL together with page comments",
+    "Get the content of a Confluence page by ID or URL (compact Markdown by default; optional comments and raw storage format)",
     getConfluencePageSchema,
     toolAnnotations("get-confluence-page"),
     getConfluencePageHandler(confluence, confluenceConfig) as any,

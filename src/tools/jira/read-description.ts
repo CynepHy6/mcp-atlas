@@ -1,20 +1,66 @@
 import { Version2Client } from "jira.js/version2";
 import { z } from "zod";
 import { JiraConfig } from "../../clients/jira-client.js";
-import { formatIssueDescription } from "../../utils/formatters.js";
+import {
+    formatComments,
+    formatIssueDescription,
+} from "../../utils/formatters.js";
 import {
     formatIssueStructure,
     getIssueStructure,
+    ISSUE_STRUCTURE_FIELDS,
 } from "../../utils/issue-relationships.js";
+import {
+    extractIssueKey,
+    formatJiraError,
+} from "../../utils/jira-issue.js";
 import { validateJiraConfig } from "../../utils/validation.js";
+import {
+    fetchIssueComments,
+    type EmbeddedCommentPage,
+} from "./read-comments.js";
+
+export const ISSUE_DESCRIPTION_FIELDS = [
+    ...ISSUE_STRUCTURE_FIELDS,
+    "description",
+    "labels",
+    "timetracking",
+    "timeoriginalestimate",
+    "timeestimate",
+    "timespent",
+] as const;
 
 export const readDescriptionSchema = {
-    issueKey: z.string().describe("The Jira issue key (e.g., PROJECT-123)"),
+    issueKey: z
+        .string()
+        .describe("The Jira issue key (e.g., PROJECT-123) or browse URL"),
+    includeComments: z
+        .boolean()
+        .default(false)
+        .describe(
+            "Include issue comments in the same response to avoid a separate read-comments call (default: false)",
+        ),
+    commentsLimit: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe(
+            "Maximum number of latest comments to include when includeComments=true (shows total and skipped counts; when omitted on paginated issues, tail fetch is capped at the latest 50 comments)",
+        ),
 };
 
 export const readDescriptionHandler =
     (jira: Version2Client, jiraConfig: JiraConfig) =>
-    async ({ issueKey }: { issueKey: string }) => {
+    async ({
+        issueKey,
+        includeComments = false,
+        commentsLimit,
+    }: {
+        issueKey: string;
+        includeComments?: boolean;
+        commentsLimit?: number;
+    }) => {
         // Validate Jira configuration
         const configError = validateJiraConfig(jiraConfig);
         if (configError) {
@@ -28,12 +74,41 @@ export const readDescriptionHandler =
             };
         }
 
+        if (
+            commentsLimit !== undefined &&
+            (!Number.isInteger(commentsLimit) || commentsLimit < 1)
+        ) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `commentsLimit must be a positive integer (got ${commentsLimit}).`,
+                    },
+                ],
+            };
+        }
+
+        const resolvedIssueKey = extractIssueKey(issueKey);
+        if (!resolvedIssueKey) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Cannot extract issue key from issueKey: ${issueKey}`,
+                    },
+                ],
+            };
+        }
+
         try {
-            // Get issue data with expanded fields for relationships
+            const requestedFields = includeComments
+                ? [...ISSUE_DESCRIPTION_FIELDS, "comment"]
+                : [...ISSUE_DESCRIPTION_FIELDS];
+
             const issue = await jira.issues.getIssue({
-                issueIdOrKey: issueKey,
+                issueIdOrKey: resolvedIssueKey,
                 expand: ["parent", "subtasks", "issuelinks"],
-                fields: ["*all"],
+                fields: requestedFields,
             });
 
             if (!issue) {
@@ -41,33 +116,63 @@ export const readDescriptionHandler =
                     content: [
                         {
                             type: "text",
-                            text: `Issue ${issueKey} not found`,
+                            text: `Issue ${resolvedIssueKey} not found`,
                         },
                     ],
                 };
             }
 
-            // Get issue structure with all related tasks
             const issueStructure = await getIssueStructure(
                 jira,
-                issueKey,
-                jiraConfig.host
+                resolvedIssueKey,
+                jiraConfig.host,
+                issue,
             );
 
-            // Format main issue description
             const formattedDescription = formatIssueDescription(issue as any);
-
-            // Format issue structure
             const formattedStructure = formatIssueStructure(issueStructure);
 
-            // Combine description and structure
-            const fullResponse = `${formattedDescription}\n\n${formattedStructure}`;
+            const sections = [formattedDescription, formattedStructure];
+
+            if (includeComments) {
+                try {
+                    const embeddedComments = (issue as any).fields?.comment as
+                        | EmbeddedCommentPage
+                        | undefined;
+                    const { comments, total } = await fetchIssueComments(
+                        jira,
+                        resolvedIssueKey,
+                        commentsLimit,
+                        embeddedComments,
+                    );
+                    sections.push(
+                        formatComments(resolvedIssueKey, comments, {
+                            total,
+                            limit: commentsLimit,
+                        }),
+                    );
+                } catch (commentError) {
+                    console.error(
+                        "Error fetching Jira comments in read-description:",
+                        commentError,
+                    );
+                    sections.push(
+                        `Comments for ${resolvedIssueKey}:\nFailed to retrieve comments: ${formatJiraError(
+                            commentError,
+                        )}`,
+                    );
+                }
+            } else if (commentsLimit !== undefined) {
+                sections.push(
+                    `Note: commentsLimit=${commentsLimit} was ignored because includeComments=false. Pass includeComments=true to include comments.`,
+                );
+            }
 
             return {
                 content: [
                     {
                         type: "text",
-                        text: fullResponse,
+                        text: sections.join("\n\n"),
                     },
                 ],
             };
@@ -77,9 +182,9 @@ export const readDescriptionHandler =
                 content: [
                     {
                         type: "text",
-                        text: `Failed to retrieve issue ${issueKey}: ${
-                            (error as Error).message
-                        }`,
+                        text: `Failed to retrieve issue ${resolvedIssueKey}: ${formatJiraError(
+                            error,
+                        )}`,
                     },
                 ],
             };
